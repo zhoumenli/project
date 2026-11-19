@@ -1,0 +1,37 @@
+# =====================================================================
+# 换行符与二进制文件规则
+# =====================================================================
+
+# 仓库内统一以 LF 存储，避免 Windows / macOS / Linux 混编产生整文件 diff
+* text=auto eol=lf
+
+# Windows 批处理必须用 CRLF，否则命令行解析异常
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Shell 脚本必须用 LF，否则在 Linux/macOS 上无法执行
+*.sh text eol=lf
+
+# 二进制文件，禁止行尾转换与文本合并
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.mp3 binary
+*.mp4 binary
+*.zip binary
+*.gz binary
+*.xlsx binary
+*.docx binary
+*.pptx binary
+*.pdf binary
+*.db binary
+*.sqlite binary

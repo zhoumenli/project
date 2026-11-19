@@ -1,0 +1,84 @@
+# =====================================================================
+# 测试效能平台 - Git 忽略规则
+# =====================================================================
+
+# ---------- 依赖 ----------
+node_modules/
+.npm-cache/
+.npm/
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.pip/
+.pdm-build/
+
+# ---------- 构建产物 / 缓存 ----------
+.vite/
+.cache/
+*.tsbuildinfo
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ---------- 环境变量与密钥 ----------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+
+# ---------- 日志 ----------
+*.log
+logs/
+backend/*.log
+backend/*.out
+backend/*.err
+
+# ---------- 运行时数据（不入库） ----------
+# SQLite 回退库（默认使用 MySQL，此文件仅为兼容旧环境）
+backend/app/platform.db
+backend/app/*.db
+backend/*.db
+backend/*.sqlite
+backend/*.sqlite3
+
+# 用户上传的需求文档（运行时产物）
+backend/app/uploads/
+
+# 元素定位 / 页面截图（运行时产物）
+backend/app/shots/
+backend/screenshots/
+backend/shots/
+shots/
+
+# 临时调试脚本
+backend/_test_*.py
+backend/tmp_*.py
+_test_*.py
+
+# ---------- IDE / 操作系统 ----------
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---------- 系统 ----------
+Windows
+*.exe
+*.dll
+*.so
+*.dylib
+
+# ---------- 说明 ----------
+# frontend/dist/ 前端构建产物**有意提交**：
+#   README 声明「clone 后无需 npm install && npm run build 即可直接运行」，
+#   且体积仅 ~317KB。如需重新构建：cd frontend && npm install && npm run build
