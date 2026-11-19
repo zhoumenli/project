@@ -303,6 +303,10 @@ test-efficiency-platform/
 │   └── demo_requirement.md  # 演示用需求文档
 ├── db/
 │   └── test_efficiency_platform.sql  # Navicat 可导入的建库建表脚本（含演示数据）
+├── scripts/
+│   ├── auto_sync.py        # 自动同步守护：监听改动 → 自动 commit + push
+│   ├── start_auto_sync.bat # Windows 后台启动
+│   └── stop_auto_sync.bat  # Windows 停止
 ├── frontend/
 │   ├── dist/                # 已构建的前端产物
 │   └── src/
@@ -405,4 +409,3 @@ git push -u origin main      # 首次会弹出浏览器授权，之后凭据自�
 > 免责声明：本软件按「原样」提供，不附带任何形式的担保，包括对适销性、特定用途适用性和非侵权性的担保。详见 LICENSE 全文。
 
 
-<!-- auto-sync test marker -->
