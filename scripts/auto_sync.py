@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as _dt
+import hashlib
 import logging
 import os
 import subprocess
@@ -154,6 +155,16 @@ class Git:
         code, out, err = self.run("push", remote, branch, check=False, timeout=180)
         combined = (out + err).strip()
         return code == 0, combined
+
+    def pending_push(self) -> int:
+        """返回尚未推送到远程的提交数（无 upstream 时返回 0）"""
+        code, out, _ = self.run("rev-list", "--count", "@{upstream}..HEAD", check=False)
+        if code != 0:
+            return 0
+        try:
+            return int((out or "0").strip() or 0)
+        except ValueError:
+            return 0
 
     def head_sha(self) -> str:
         _, out, _ = self.run("rev-parse", "--short", "HEAD")
@@ -278,18 +289,38 @@ class AutoSync:
         self.git = Git(REPO_ROOT, dry_run=args.dry_run)
         self.branch = args.branch or self.git.current_branch()
         self.last_change_time: float | None = None
-        self.last_seen: set[str] = set()
+        self.last_fingerprint: str = ""
+        self.last_push_attempt: float = 0.0
+        self.changed_now: bool = False
 
     # -- 变更检测 ------------------------------------------------------
+    def fingerprint(self) -> str:
+        """
+        计算变更内容的指纹：状态 + 未暂存差异 + 已暂存差异。
+        仅比较文件名列表是不够的——只改文件内容时文件名不变，
+        但 diff 会变，指纹随之变化，才能正确触发静默期重置。
+        """
+        _, st, _ = self.git.run("status", "--porcelain", "--untracked-files=all", check=False)
+        _, unstaged, _ = self.git.run("diff", check=False)
+        _, staged, _ = self.git.run("diff", "--cached", check=False)
+        blob = f"{st}\x00{unstaged}\x00{staged}"
+        return hashlib.md5(blob.encode("utf-8", errors="replace")).hexdigest()
+
     def detect(self) -> list[str]:
+        """检测变更，并标记本轮是否出现了「新的」变更内容"""
         entries = self.git.status_porcelain()
         files = filter_changes(entries, self.args.exclude)
-        current = set(files)
-        if current != self.last_seen:
-            if current:
-                self.log.info(f"检测到 {len(current)} 处变更：{', '.join(list(current)[:5])}"
-                             + (" ..." if len(current) > 5 else ""))
-            self.last_seen = current
+
+        # 用内容指纹判断是否真的有新动静。
+        # 注意：不能只看文件名列表，否则「只改内容」会被漏掉；
+        # 也不能每轮都重置静默期，否则同一批待提交文件会让静默期永远不到期。
+        fp = self.fingerprint()
+        self.changed_now = fp != self.last_fingerprint
+        if self.changed_now:
+            self.last_fingerprint = fp
+            if files:
+                self.log.info(f"检测到 {len(files)} 处变更：{', '.join(files[:5])}"
+                             + (" ..." if len(files) > 5 else ""))
         return files
 
     # -- 执行一次同步 --------------------------------------------------
@@ -334,17 +365,53 @@ class AutoSync:
             self.log.info("  --no-push 已启用，跳过推送")
             return True
 
-        # 推送（带重试）
+        # 推送（带重试；区分网络故障与认证故障）
+        ok, out = self._push_with_retry()
+        if ok:
+            self.log.info(f"  推送成功 → {self.args.remote}/{self.branch}")
+            return True
+        self.log.error("  推送最终失败，变更已保留在本地提交中（网络恢复后会自动补推）")
+        return True
+
+    # -- 推送重试 ------------------------------------------------------
+    AUTH_ERRORS = (
+        "authentication failed",
+        "could not read username",
+        "could not read password",
+        "permission denied",
+        "403",
+        "invalid username or password",
+    )
+
+    def _push_with_retry(self) -> tuple[bool, str]:
+        last = ""
         for attempt in range(1, self.args.retries + 1):
             ok, out = self.git.push(self.args.remote, self.branch)
             if ok:
-                self.log.info(f"  推送成功 → {self.args.remote}/{self.branch}")
-                return True
-            self.log.warning(f"  推送失败（第 {attempt}/{self.args.retries} 次）: {out.strip()[:300]}")
+                return True, out
+            last = out
+            low = out.lower()
+            if any(k in low for k in self.AUTH_ERRORS):
+                self.log.error("  认证失败，重试无意义。请先执行一次 git push 手动登录 GitHub。")
+                return False, out
+            self.log.warning(
+                f"  推送失败（第 {attempt}/{self.args.retries} 次，网络问题）: {out.strip()[:200]}"
+            )
             if attempt < self.args.retries:
                 time.sleep(min(2 ** attempt, 15))
+        return False, last
 
-        self.log.error("  推送最终失败，变更已保留在本地提交中")
+    def push_pending(self) -> bool:
+        """补推：本地有未推送提交时重试推送（不产生新提交）"""
+        count = self.git.pending_push()
+        if count <= 0:
+            return False
+        self.log.info(f"→ 检测到 {count} 个未推送的提交，尝试补推")
+        ok, _ = self._push_with_retry()
+        if ok:
+            self.log.info(f"  补推成功 → {self.args.remote}/{self.branch}")
+        else:
+            self.log.warning("  补推失败，稍后重试")
         return True
 
     # -- 轮询循环 ------------------------------------------------------
@@ -375,7 +442,8 @@ class AutoSync:
         try:
             while True:
                 files = self.detect()
-                if files:
+                if files and self.changed_now:
+                    # 仅在出现「新的」变更集合时才重置静默期
                     self.last_change_time = time.time()
 
                 # 静默期到期才提交
@@ -386,6 +454,14 @@ class AutoSync:
                         self.sync_once()
                     except Exception as e:
                         self.log.error(f"同步异常: {e}", exc_info=True)
+                    self.last_push_attempt = time.time()
+                elif time.time() - self.last_push_attempt >= self.args.retry_interval:
+                    # 没有新改动，但本地有未推送的提交 → 补推（应对网络恢复）
+                    try:
+                        if self.push_pending():
+                            self.last_push_attempt = time.time()
+                    except Exception as e:
+                        self.log.error(f"补推异常: {e}", exc_info=True)
 
                 time.sleep(self.args.interval)
 
@@ -412,6 +488,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--dry-run", action="store_true", help="演练模式，不实际提交")
     p.add_argument("--once", action="store_true", help="执行一次后退出")
     p.add_argument("--retries", type=int, default=3, help="推送失败重试次数（默认 3）")
+    p.add_argument("--retry-interval", type=int, default=60,
+                   help="补推最小间隔秒数（默认 60），避免网络故障时空转")
     p.add_argument("--exclude", action="append", default=[], help="额外排除路径（可重复）")
     return p.parse_args(argv)
 

@@ -337,6 +337,65 @@ test-efficiency-platform/
 
 ---
 
+## 自动同步到 GitHub（改动即推送）
+
+本项目内置 `scripts/auto_sync.py`，监听本地代码改动并自动 `commit` + `push` 到 GitHub，实现「改完代码，仓库实时更新」。
+
+### 快速使用
+
+```bash
+# 前台运行（Ctrl+C 停止）
+python scripts/auto_sync.py
+
+# 后台常驻（Windows 双击）
+scripts\start_auto_sync.bat     # 启动
+scripts\stop_auto_sync.bat      # 停止
+
+# 单次同步（适合挂到计划任务）
+python scripts/auto_sync.py --once
+```
+
+### 核心机制
+
+| 机制 | 说明 |
+|---|---|
+| 变更检测 | 走 `git status --porcelain`，**自动遵循 `.gitignore`**，日志/截图/上传文件不会被提交 |
+| 防抖静默期 | 最后一次改动后再等 `--debounce` 秒（默认 8s）才提交，避免连续保存产生碎片提交 |
+| 单实例锁 | `logs/auto_sync.lock` 记录 PID，防止多进程并发提交互相踩踏；进程已退出时自动清理僵尸锁 |
+| 推送重试 | 网络故障指数退避重试（默认 3 次）；**认证失败不重试**并提示先手动登录 |
+| 断点补推 | 推送失败时本地提交保留，网络恢复后自动补推（`--retry-interval`，默认 60s） |
+| 安全兜底 | 额外排除 `logs/`、`node_modules/`、`.idea/`、`*.log`、`backend/app/uploads/` 等 |
+
+### 常用参数
+
+```bash
+python scripts/auto_sync.py --interval 3        # 轮询间隔（默认 5 秒）
+python scripts/auto_sync.py --debounce 15       # 静默期（默认 8 秒）
+python scripts/auto_sync.py --dry-run           # 演练，只打印不提交
+python scripts/auto_sync.py --no-push           # 只本地提交，不推送
+python scripts/auto_sync.py --once              # 同步一次就退出
+python scripts/auto_sync.py --exclude "path/"   # 额外排除路径
+```
+
+提交信息模板默认 `chore: 自动同步 {files} ({time})`，可用占位符：`{files}` `{count}` `{time}` `{date}`。
+
+### 首次使用前先完成一次 GitHub 登录
+
+凭据缓存在 Windows 凭据管理器后，守护进程才能无人值守推送：
+
+```bash
+git push -u origin main      # 首次会弹出浏览器授权，之后凭据自动复用
+```
+
+### IDE 原生方案（不想开后台进程时）
+
+| IDE | 配置 |
+|---|---|
+| **IntelliJ IDEA** | `Settings → Version Control → Commit` 勾选 `Commit changes automatically`（延迟 30s）；用 `Ctrl+K`（Commit and Push）手动推送 |
+| **VS Code** | `settings.json` 加 `"git.autoCommit": "afterDelay"` 与 `"git.postCommitCommand": "push"` |
+
+---
+
 ## 开源许可
 
 本项目采用 [MIT License](LICENSE) 开源许可协议，Copyright © 2026 Zdesp。
