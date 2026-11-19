@@ -11,8 +11,8 @@
 
           <!-- 公共：URL + 可选 Basic Auth -->
           <div class="field"><label>url *</label><input class="input" v-model="form.url" /></div>
-          <div class="field"><label>username（可选，Basic Auth）</label><input class="input" v-model="form.username" /></div>
-          <div class="field"><label>password（可选，Basic Auth）</label><input class="input" type="password" v-model="form.password" /></div>
+          <div class="field"><label>username（可选，Basic Auth）</label><input class="input" v-model="form.username" autocomplete="off" name="tef_basic_auth_user" data-no-autofill="user" @pointerdown="markTouched('user')" @keydown="markTouched('user')" /></div>
+          <div class="field"><label>password（可选，Basic Auth）</label><input class="input" type="password" v-model="form.password" autocomplete="off" name="tef_basic_auth_pass" data-no-autofill="pass" @pointerdown="markTouched('pass')" @keydown="markTouched('pass')" /></div>
           <div class="url-preview">实际访问：<code>{{ maskUrl(builtUrl) || '（请填写 url）' }}</code></div>
 
           <!-- 定位方式 -->
@@ -208,10 +208,64 @@ const interactiveStarting = ref(false)
 const interactiveLocating = ref(false)
 let statusTimer = null
 
+// ------------------------------------------------------------------
+// 清除浏览器自动填充
+// 四层防护：
+//   1) autocomplete="off" —— 模板层，多数浏览器直接放弃填充
+//   2) name 用非语义名 —— 不参与密码管理器的「用户名-密码」配对识别
+//   3) :-/:-moz-autofill 伪类检测 —— 识别被填充过的元素
+//   4) 持续巡检 —— 自动填充的时机不可控（可能发生在任何时刻，
+//      甚至用户聚焦之后），必须持续盯着而不是只查一次
+// ------------------------------------------------------------------
+const touchedFields = new Set()
+let autofillTimers = []
+let autofillWatcher = null
+
+function markTouched(key) {
+  touchedFields.add(key)
+}
+
+function clearBrowserAutofill() {
+  document.querySelectorAll('[data-no-autofill]').forEach((el) => {
+    if (!el.value) return
+    const key = el.dataset.noAutofill
+
+    // 浏览器自动填充的元素会命中 :-webkit-autofill / :-moz-autofill 伪类
+    let isAutoFilled = false
+    try {
+      isAutoFilled = el.matches(':-webkit-autofill') || el.matches(':-moz-autofill')
+    } catch (e) {
+      isAutoFilled = false
+    }
+
+    // 用户主动操作过（点过/敲过键盘）且不是自动填充 → 是用户自己填的，保留
+    if (!isAutoFilled && touchedFields.has(key)) return
+
+    // 其余情况一律视为自动填充并清空：
+    //   伪类命中              → 确定是浏览器填的
+    //   用户从未交互过却有值 → 只能是浏览器填的
+    el.value = ''
+    if (key === 'user') form.value.username = ''
+    else if (key === 'pass') form.value.password = ''
+  })
+}
+
 onMounted(() => {
   try { history.value = JSON.parse(localStorage.getItem(HIST_KEY) || '[]') } catch (e) {}
+  // 浏览器「记住密码」会把用户自己的账号密码自动填进 Basic Auth 框，
+  // 但这里要的是「目标站点」的凭据，自动填充只会造成误访问，必须清掉。
+  clearBrowserAutofill()
+  autofillTimers = [300, 1000, 2000].map((ms) => setTimeout(clearBrowserAutofill, ms))
+  // 持续巡检：自动填充可能发生在任意时刻，也可能在用户聚焦之后才发生
+  autofillWatcher = setInterval(clearBrowserAutofill, 1500)
 })
-onBeforeUnmount(() => { if (statusTimer) clearInterval(statusTimer) })
+onBeforeUnmount(() => {
+  if (statusTimer) clearInterval(statusTimer)
+  autofillTimers.forEach((t) => clearTimeout(t))
+  autofillTimers = []
+  if (autofillWatcher) clearInterval(autofillWatcher)
+  autofillWatcher = null
+})
 
 async function openInteractive() {
   interactiveStarting.value = true
@@ -370,6 +424,15 @@ function matchedOnName(m) {
 
 <style scoped>
 .hint-bar { background: #eef1ff; color: var(--primary); border-radius: 8px; padding: 10px 12px; font-size: 12px; line-height: 1.7; margin-bottom: 14px; }
+/* 抹掉浏览器自动填充时自带的黄色高亮，避免和"用户已填"状态混淆 */
+input[data-no-autofill]:-webkit-autofill,
+input[data-no-autofill]:-webkit-autofill:hover,
+input[data-no-autofill]:-webkit-autofill:focus {
+  -webkit-text-fill-color: #1e2440;
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset;
+  caret-color: #1e2440;
+  transition: background-color 9999s ease-out 0s;
+}
 .radio-row { display: flex; gap: 16px; }
 .radio-row.wrap { flex-wrap: wrap; gap: 10px; }
 .interactive-panel { background:#f6fbf9; border:1px solid #b7e4d0; border-radius:8px; padding:12px; margin-top:10px; }
