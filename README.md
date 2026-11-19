@@ -26,6 +26,29 @@
 
 ---
 
+## 快速开始（克隆后 3 步跑起来）
+
+```bash
+# 1. 克隆
+git clone https://github.com/<你的用户名>/test-efficiency-platform.git
+cd test-efficiency-platform
+
+# 2. 建库（命令行一键，或用 Navicat 导入 db/test_efficiency_platform.sql）
+mysql -uroot -proot < db/test_efficiency_platform.sql
+
+# 3. 启动（开两个终端）
+cd backend
+python mock_server.py                                       # 终端 A：被测系统，端口 9001
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000   # 终端 B：平台，端口 8000
+```
+
+浏览器打开 **http://127.0.0.1:8000** ，用 `testuser` / `Test@1234` 登录。
+
+> 前端 `frontend/dist` 已随仓库提交，**无需 `npm install` / `npm run build`** 即可直接运行。
+> 需要改前端源码时再执行：`cd frontend && npm install && npm run build`
+
+---
+
 ## 启动方式
 
 ### 1. 环境要求（重要）
