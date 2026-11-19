@@ -4,10 +4,31 @@ version = "1.0.0"
 description = "测试提效平台后端"
 requires-python = ">=3.10"
 dependencies = [
+    # --- Web 框架 ---
     "fastapi>=0.104",
     "uvicorn>=0.24",
+    "python-multipart>=0.0.6",   # FastAPI 文件/表单上传（需求文档、截图）
+    # --- 数据层 ---
     "sqlalchemy>=2.0",
+    "pymysql>=1.1",              # MySQL 驱动（默认 DB_BACKEND=mysql）
     "pydantic>=2.0",
-    "httpx>=0.25",
-    "playwright>=1.40",
+    # --- 执行引擎 ---
+    "httpx>=0.25",               # 接口用例执行
+    "playwright>=1.40",          # 网页元素定位（需系统浏览器，无需 playwright install）
+    # --- 文档解析 / 导出（缺失时对应格式自动降级，不影响核心功能）---
+    "openpyxl>=3.1",             # Excel 解析与导出
+    "python-docx>=1.1",          # Word 解析与导出
+    "python-pptx>=0.6",          # PPT 解析
+    "pymupdf>=1.24",             # PDF 解析
+    "pillow>=10.0",              # 图片处理
 ]
+
+[project.optional-dependencies]
+llm = ["openai>=1.0"]           # 需求生成的大模型引擎（未安装则回退本地规则引擎）
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["app"]

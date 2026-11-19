@@ -1,0 +1,181 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ============================================================
+  # 前端：依赖安装 + 生产构建校验
+  # ============================================================
+  frontend:
+    name: 前端构建校验
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 准备 Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 生产构建
+        run: npm run build
+
+      - name: 校验构建产物
+        run: |
+          test -f dist/index.html
+          ls -la dist
+          echo "产物大小: $(du -sh dist | cut -f1)"
+
+  # ============================================================
+  # 后端：依赖安装 + 应用导入 + MySQL 建库脚本 + 登录接口端到端
+  # ============================================================
+  backend:
+    name: 后端端到端校验
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: test_efficiency_platform
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      DB_BACKEND: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: '3306'
+      DB_NAME: test_efficiency_platform
+      DB_USER: root
+      DB_PASSWORD: root
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 准备 Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: 安装依赖
+        working-directory: backend
+        run: |
+          pip install -r requirements.txt
+
+      - name: 应用可导入校验
+        working-directory: backend
+        run: |
+          python -c "from app.main import app; print('API 路由数:', len(app.routes))"
+
+      - name: 等待 MySQL 就绪
+        run: |
+          for i in $(seq 1 30); do
+            if python -c "
+          import pymysql,sys
+          try:
+              pymysql.connect(host='127.0.0.1',port=3306,user='root',password='root').close()
+          except Exception:
+              sys.exit(1)
+          " 2>/dev/null; then
+            echo "MySQL 就绪（第 ${i} 次探测）"; exit 0
+          fi
+          sleep 2
+          done
+          echo "MySQL 启动超时"; exit 1
+
+      - name: 执行建库脚本 db/test_efficiency_platform.sql
+        working-directory: backend
+        run: |
+          python - <<'PY'
+          import pymysql
+          from pymysql.constants import CLIENT
+
+          sql = open('../db/test_efficiency_platform.sql', encoding='utf-8').read()
+          conn = pymysql.connect(
+              host='127.0.0.1', port=3306, user='root', password='root',
+              charset='utf8mb4', client_flag=CLIENT.MULTI_STATEMENTS,
+          )
+          with conn.cursor() as cur:
+              cur.execute(sql)
+              while cur.nextset():   # 消费多语句返回的多个结果集
+                  pass
+          conn.commit()
+          conn.close()
+          print('建库脚本执行成功')
+          PY
+
+      - name: 校验表结构与演示账号
+        working-directory: backend
+        run: |
+          python - <<'PY'
+          import pymysql
+          conn = pymysql.connect(host='127.0.0.1', port=3306, user='root',
+                                 password='root', database='test_efficiency_platform',
+                                 charset='utf8mb4')
+          with conn.cursor() as cur:
+              cur.execute("SELECT COUNT(*) FROM information_schema.TABLES "
+                          "WHERE TABLE_SCHEMA='test_efficiency_platform'")
+              tables = cur.fetchone()[0]
+              assert tables == 10, f'期望 10 张表，实际 {tables}'
+              cur.execute("SELECT username FROM users WHERE username='testuser'")
+              assert cur.fetchone(), '演示账号 testuser 缺失'
+          conn.close()
+          print(f'表结构校验通过：{tables} 张表，演示账号就位')
+          PY
+
+      - name: 启动后端并验证登录接口
+        working-directory: backend
+        run: |
+          nohup python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 > /tmp/uvicorn.log 2>&1 &
+          for i in $(seq 1 40); do
+            if curl -sf http://127.0.0.1:8000/ > /dev/null; then
+              echo "后端已启动（第 ${i} 次探测）"; break
+            fi
+            sleep 2
+          done
+          curl -sf http://127.0.0.1:8000/ > /dev/null || { echo "后端启动失败"; cat /tmp/uvicorn.log; exit 1; }
+
+          echo "--- 登录校验 ---"
+          curl -sf -X POST http://127.0.0.1:8000/api/auth/login \
+            -H 'Content-Type: application/json' \
+            -d '{"username":"testuser","password":"Test@1234"}' | tee /tmp/login.json
+          grep -q '"token"' /tmp/login.json
+
+          echo ""
+          echo "--- 鉴权校验（无 token 应返回 401）---"
+          status=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/api/projects)
+          test "$status" = "401" || { echo "期望 401，实际 $status"; exit 1; }
+          echo "鉴权中间件生效"
+
+      - name: 清理
+        if: always()
+        run: pkill -f "uvicorn app.main:app" || true
