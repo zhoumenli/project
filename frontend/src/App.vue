@@ -39,6 +39,7 @@
             </button>
             <div v-if="menuOpen" class="user-dropdown">
               <div class="dropdown-head">当前用户<br><b>{{ user?.username }}</b></div>
+              <div class="dropdown-idle">无操作 {{ idleRemainText }}自动退出</div>
               <button @click="logout">退出登录</button>
             </div>
           </div>
@@ -53,10 +54,13 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { projects, currentProject, toast, loadProjects, api, notify } from './api'
-import { user, clearSession, isLoggedIn } from './auth'
+import {
+  user, clearSession, isLoggedIn,
+  startIdleWatch, stopIdleWatch, idleRemainingMs, idleTick, idleTimeoutMs,
+} from './auth'
 
 const route = useRoute()
 const router = useRouter()
@@ -72,11 +76,37 @@ const navItems = [
   { path: '/environments', icon: '⚙️', title: '环境管理' },
 ]
 
+// 剩余可无操作时长（每次空闲巡检/活动事件都会刷新）
+const idleRemainText = computed(() => {
+  idleTick.value // 建立对计时 tick 的依赖，驱动文本刷新
+  const ms = idleRemainingMs()
+  if (!isLoggedIn.value) return '0 分钟'
+  const m = Math.floor(ms / 60000)
+  const s = Math.floor((ms % 60000) / 1000)
+  if (m <= 0) return `${s} 秒后`
+  return `${m} 分 ${String(s).padStart(2, '0')} 秒后`
+})
+
+function onIdleExpire() {
+  clearSession()
+  notify('长时间未操作，已自动退出登录')
+  router.push('/login?reason=idle')
+}
+
 onMounted(async () => {
   if (!isLoggedIn.value) return
+  startIdleWatch(onIdleExpire)
   try { await loadProjects() } catch (e) {}
   projectId.value = currentProject.value?.id
 })
+onBeforeUnmount(() => stopIdleWatch())
+
+// 登录状态变化时同步启停空闲监测（公开页与平台页切换不会卸载 App）
+watch(isLoggedIn, (v) => {
+  if (v) startIdleWatch(onIdleExpire)
+  else stopIdleWatch()
+})
+
 watch(() => currentProject.value, (p) => { projectId.value = p?.id })
 function onProjectChange() {
   currentProject.value = projects.value.find(p => p.id === projectId.value)
@@ -141,6 +171,10 @@ async function logout() {
 }
 .dropdown-head { padding: 13px 15px; font-size: 11px; color: var(--muted); border-bottom: 1px solid var(--border); line-height: 1.7; }
 .dropdown-head b { color: var(--text); font-size: 14px; }
+.dropdown-idle {
+  padding: 9px 15px; font-size: 11.5px; color: var(--muted);
+  border-bottom: 1px solid var(--border); background: #fafbfd;
+}
 .user-dropdown button {
   display: block; width: 100%; text-align: left; border: none; background: #fff;
   padding: 12px 15px; font-size: 13px; font-weight: 600; color: var(--danger);

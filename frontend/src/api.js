@@ -15,19 +15,27 @@ export async function api(path, options = {}) {
     if (body !== undefined) config.body = JSON.stringify(body)
   }
   const resp = await fetch(API_BASE + path, config)
+
+  // 响应体只解析一次，后续逻辑复用
+  let payload = null
+  let parsed = false
+  try { payload = await resp.json(); parsed = true } catch (e) {}
+
   if (resp.status === 401 && !path.startsWith('/api/auth/')) {
+    const detail = (parsed && payload && payload.detail) || ''
+    const code = (parsed && payload && payload.code) || resp.headers.get('X-Auth-Error') || ''
     clearSession()
     const pub = ['/', '/login', '/register']
     if (!pub.includes(window.location.pathname)) {
-      window.location.href = '/login'
+      const reason = code === 'idle_timeout' || detail.includes('未操作') ? 'idle' : 'expired'
+      window.location.href = '/login?reason=' + reason
     }
   }
   if (!resp.ok) {
-    let msg = resp.statusText
-    try { msg = (await resp.json()).detail || msg } catch (e) {}
+    const msg = (parsed && payload && payload.detail) || resp.statusText
     throw new Error(msg)
   }
-  return resp.json()
+  return payload
 }
 
 // shared global state

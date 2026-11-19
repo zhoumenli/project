@@ -17,6 +17,13 @@ from .database import SessionLocal
 PBKDF2_ROUNDS = 210_000
 USERNAME_RE = re.compile(r"^[A-Za-z0-9_]{3,20}$")
 
+# ---- Session idle timeout: no API activity for N minutes -> token revoked ----
+# 默认 30 分钟，可用环境变量 SESSION_IDLE_MINUTES 调整（设 0 表示不限制）
+IDLE_TIMEOUT_MINUTES = max(0, int(os.getenv("SESSION_IDLE_MINUTES", "30")))
+IDLE_TIMEOUT_SECONDS = IDLE_TIMEOUT_MINUTES * 60
+# 活跃时间戳的最小写回间隔，避免每个请求都 UPDATE 一次数据库
+TOUCH_INTERVAL_SECONDS = 60
+
 
 def hash_password(password: str) -> str:
     salt = secrets.token_bytes(16)
@@ -60,11 +67,56 @@ def create_token(db: Session, user_id: int, ttl_days: int = 30) -> str:
     rec = models.AuthToken(
         token=token,
         user_id=user_id,
+        created_at=datetime.now(),
         expires_at=datetime.now() + timedelta(days=ttl_days),
+        last_active_at=datetime.now(),
     )
     db.add(rec)
     db.commit()
     return token
+
+
+def touch_token(db: Session, rec: models.AuthToken) -> None:
+    """刷新 token 的最后活跃时间（带节流，避免高频写库）。"""
+    if IDLE_TIMEOUT_MINUTES <= 0:
+        return
+    now = datetime.now()
+    if rec.last_active_at and (now - rec.last_active_at).total_seconds() < TOUCH_INTERVAL_SECONDS:
+        return
+    rec.last_active_at = now
+    db.commit()
+
+
+def resolve_token(db: Session, token: str):
+    """校验 Bearer token。
+
+    返回 (token_rec, user, error_detail, error_code)；校验通过时前两项非空。
+    空闲超时（IDLE_TIMEOUT_MINUTES 内无任何操作）会直接吊销该 token。
+    """
+    rec = db.query(models.AuthToken).filter(models.AuthToken.token == token).first()
+    if not rec:
+        return None, None, "无效的登录凭证", "invalid_token"
+    if rec.expires_at and rec.expires_at < datetime.now():
+        db.delete(rec)
+        db.commit()
+        return None, None, "登录已过期，请重新登录", "expired"
+
+    if IDLE_TIMEOUT_MINUTES > 0:
+        # 老数据没有 last_active_at 时，用 created_at 兜底，避免历史 token 立即失效
+        last = rec.last_active_at or rec.created_at
+        if last and (datetime.now() - last).total_seconds() > IDLE_TIMEOUT_SECONDS:
+            db.delete(rec)
+            db.commit()
+            return None, None, "长时间未操作，已自动退出登录", "idle_timeout"
+
+    user = db.query(models.User).filter(models.User.id == rec.user_id).first()
+    if not user:
+        db.delete(rec)
+        db.commit()
+        return None, None, "用户不存在", "no_user"
+
+    touch_token(db, rec)
+    return rec, user, None, None
 
 
 def get_current_user(authorization: Optional[str] = Header(None)):
@@ -74,14 +126,13 @@ def get_current_user(authorization: Optional[str] = Header(None)):
     token = authorization[7:].strip()
     db = SessionLocal()
     try:
-        rec = db.query(models.AuthToken).filter(models.AuthToken.token == token).first()
+        rec, user, detail, code = resolve_token(db, token)
         if not rec:
-            raise HTTPException(401, "无效的登录凭证")
-        if rec.expires_at and rec.expires_at < datetime.now():
-            raise HTTPException(401, "登录已过期，请重新登录")
-        user = db.query(models.User).filter(models.User.id == rec.user_id).first()
-        if not user:
-            raise HTTPException(401, "用户不存在")
+            raise HTTPException(
+                status_code=401,
+                detail=detail,
+                headers={"X-Auth-Error": code},
+            )
         return {"id": user.id, "username": user.username, "role": user.role}
     finally:
         db.close()

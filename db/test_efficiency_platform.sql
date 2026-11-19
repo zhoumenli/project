@@ -18,8 +18,8 @@
 --     mysql -uroot -proot -D test_efficiency_platform < test_efficiency_platform.sql
 -- ---------------------------------------------------------------------
 -- 【说明】
---   * 脚本使用 DROP TABLE IF EXISTS，可重复执行，不会报"表已存在"
---   * 已包含演示账号与示例项目种子数据，导入后平台开箱可用
+--   * ⚠️ 警告：脚本使用 DROP TABLE IF EXISTS，重复执行会【清空并重建】test_efficiency_platform
+--     库中的全部数据（包括你在平台上创建的项目/用例/执行记录）——请勿在有真实业务数据的库上执行
 --   * auth_tokens 表只建表不写入数据（登录令牌为运行时签发，不应固化在脚本中）
 --   * 用户密码以 PBKDF2-HMAC-SHA256（210,000 次迭代 + 随机盐）哈希存储，非明文
 -- ---------------------------------------------------------------------
@@ -65,6 +65,7 @@ CREATE TABLE `auth_tokens` (
   `user_id` int NOT NULL,
   `created_at` datetime DEFAULT NULL,
   `expires_at` datetime DEFAULT NULL,
+  `last_active_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `ix_auth_tokens_token` (`token`),
   KEY `user_id` (`user_id`),

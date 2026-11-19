@@ -59,7 +59,7 @@ async function submit() {
   loading.value = true
   try {
     const r = await api('/api/auth/register', { method: 'POST', body: { username: form.value.username, password: form.value.password } })
-    setSession(r.token, r.user)
+    setSession(r.token, r.user, r.idle_timeout)
     notify(`注册成功，欢迎 ${r.user.username}`)
     router.push('/dashboard')
   } catch (e) { error.value = e.message }

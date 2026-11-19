@@ -6,6 +6,8 @@
       <h2>登录账号</h2>
       <p class="auth-sub">登录后即可访问平台全部功能</p>
 
+      <div v-if="notice" class="notice" :class="{ warn: noticeType === 'warn' }">{{ notice }}</div>
+
       <form @submit.prevent="submit">
         <div class="field">
           <label>用户名</label>
@@ -26,7 +28,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { api, notify } from '../api'
 import { setSession } from '../auth'
@@ -37,13 +39,21 @@ const form = ref({ username: '', password: '' })
 const error = ref('')
 const loading = ref(false)
 
+// 被自动登出后跳转回登录页时，说明原因
+const notice = computed(() => {
+  if (route.query.reason === 'idle') return '长时间未操作（超过 30 分钟），已自动退出登录，请重新登录'
+  if (route.query.reason === 'expired') return '登录已过期，请重新登录'
+  return ''
+})
+const noticeType = computed(() => (route.query.reason === 'idle' || route.query.reason === 'expired') ? 'warn' : 'info')
+
 async function submit() {
   error.value = ''
   if (!form.value.username || !form.value.password) { error.value = '请填写用户名和密码'; return }
   loading.value = true
   try {
     const r = await api('/api/auth/login', { method: 'POST', body: form.value })
-    setSession(r.token, r.user)
+    setSession(r.token, r.user, r.idle_timeout)
     notify(`欢迎回来，${r.user.username}`)
     router.push(route.query.redirect || '/dashboard')
   } catch (e) { error.value = e.message }
@@ -85,6 +95,11 @@ async function submit() {
   background: #fdf0f1; color: #d13b4f; padding: 10px 12px; border-radius: 6px;
   font-size: 12.5px; margin-bottom: 15px;
 }
+.notice {
+  padding: 10px 12px; border-radius: 6px; font-size: 12.5px; margin-bottom: 15px;
+  background: #fff8e8; color: #9a6d1b; border: 1px solid #f0e2c4;
+}
+.notice.info { background: #eef1ff; color: #4f5fe0; border-color: #dcdff8; }
 .submit {
   width: 100%; padding: 11px; border: none; border-radius: 6px;
   background: #4f5fe0; color: #fff; font-size: 14.5px; font-weight: 500;

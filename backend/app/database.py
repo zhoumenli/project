@@ -51,9 +51,10 @@ def init_db():
 
 
 def _migrate_add_columns():
-    """Add new columns to existing SQLite tables (create_all won't alter tables)."""
-    if DB_BACKEND != "sqlite":
-        return  # MySQL 表结构变更请走 ALTER TABLE / Navicat
+    """Add new columns to existing tables (create_all won't alter tables)."""
+    if DB_BACKEND == "mysql":
+        _migrate_mysql_add_columns()
+        return
     needed = {
         "run_details": {"extracted": "TEXT"},
     }
@@ -72,3 +73,32 @@ def _migrate_add_columns():
                         conn.commit()
                     except Exception:
                         pass  # column may have been added by another worker
+
+
+def _migrate_mysql_add_columns():
+    """Add missing columns to existing MySQL tables (MySQL has no ADD COLUMN IF NOT EXISTS)."""
+    needed = {
+        "auth_tokens": {"last_active_at": "DATETIME NULL"},
+    }
+    with engine.connect() as conn:
+        for table, cols in needed.items():
+            try:
+                existing = {row[0] for row in conn.execute(
+                    text(
+                        "SELECT COLUMN_NAME FROM information_schema.COLUMNS "
+                        "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :t"
+                    ),
+                    {"t": table},
+                ).fetchall()}
+            except Exception:
+                continue
+            for col, coltype in cols.items():
+                if col not in existing:
+                    try:
+                        conn.execute(text(
+                            f"ALTER TABLE `{table}` ADD COLUMN `{col}` {coltype}"
+                        ))
+                        conn.commit()
+                        print(f"[migrate] {table}.{col} 已添加")
+                    except Exception as e:  # pragma: no cover - 并发启动时会重复执行
+                        print(f"[migrate] {table}.{col} 添加失败: {e}")

@@ -29,6 +29,8 @@ class AuthToken(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     created_at = Column(DateTime, default=now)
     expires_at = Column(DateTime, nullable=True)
+    # 最后一次活跃时间：用于「长时间无操作自动登出」判定
+    last_active_at = Column(DateTime, nullable=True, default=now)
 
     user = relationship("User", back_populates="tokens")
 

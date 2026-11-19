@@ -42,18 +42,23 @@ async def auth_guard(request: Request, call_next):
     if path.startswith("/api/") and not path.startswith("/api/auth/"):
         header = request.headers.get("authorization", "")
         if not header.lower().startswith("bearer "):
-            return JSONResponse({"detail": "未登录或登录已过期"}, status_code=401)
+            return JSONResponse(
+                {"detail": "未登录或登录已过期", "code": "no_token"},
+                status_code=401,
+                headers={"X-Auth-Error": "no_token"},
+            )
         token = header[7:].strip()
         db = SessionLocal()
         try:
-            rec = db.query(models.AuthToken).filter(models.AuthToken.token == token).first()
-            if not rec or (rec.expires_at and rec.expires_at < datetime.now()):
-                return JSONResponse({"detail": "登录已过期，请重新登录"}, status_code=401)
-            user = db.query(models.User).filter(models.User.id == rec.user_id).first()
-            if not user:
-                return JSONResponse({"detail": "用户不存在"}, status_code=401)
+            rec, user, detail, code = auth.resolve_token(db, token)
         finally:
             db.close()
+        if not rec:
+            return JSONResponse(
+                {"detail": detail, "code": code},
+                status_code=401,
+                headers={"X-Auth-Error": code},
+            )
     return await call_next(request)
 
 
@@ -79,7 +84,11 @@ def register(payload: dict):
         db.commit()
         db.refresh(user)
         token = auth.create_token(db, user.id)
-        return {"token": token, "user": {"id": user.id, "username": user.username, "role": user.role}}
+        return {
+            "token": token,
+            "user": {"id": user.id, "username": user.username, "role": user.role},
+            "idle_timeout": auth.IDLE_TIMEOUT_SECONDS,
+        }
     finally:
         db.close()
 
@@ -94,7 +103,11 @@ def login(payload: dict):
         if not user or not auth.verify_password(password, user.password_hash):
             raise HTTPException(401, "用户名或密码错误")
         token = auth.create_token(db, user.id)
-        return {"token": token, "user": {"id": user.id, "username": user.username, "role": user.role}}
+        return {
+            "token": token,
+            "user": {"id": user.id, "username": user.username, "role": user.role},
+            "idle_timeout": auth.IDLE_TIMEOUT_SECONDS,
+        }
     finally:
         db.close()
 
