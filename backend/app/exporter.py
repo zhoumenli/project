@@ -146,3 +146,90 @@ def export_cases(cases: List[dict], fmt: str, doc_name: str, lang: str = "zh") -
         return doc.encode("utf-8"), f"{safe_name}.html", content_type
 
     raise ValueError(f"不支持的导出格式: {fmt}")
+
+
+# ============================================================
+# 用例中心（Case Center）导出：Excel / CSV
+# ============================================================
+CASE_CENTER_COLS = ["编号", "标题", "类型", "优先级", "所属目录", "前置条件",
+                    "步骤", "预期结果", "标签", "请求方法", "接口地址", "请求头", "请求体", "断言规则"]
+
+CASE_TYPE_DISP = {"api": "接口", "ui": "UI自动化", "manual": "手工"}
+ASSERT_TYPE_DISP = {"status": "状态码", "json": "JSON", "header": "响应头", "body": "响应体"}
+ASSERT_OP_DISP = {"eq": "=", "ne": "≠", "contains": "包含", "gt": ">",
+                  "gte": "≥", "lt": "<", "exists": "存在", "regex": "正则"}
+
+
+def _case_center_rows(cases: List[dict], folder_names: Dict[int, str] = None) -> List[list]:
+    folder_names = folder_names or {}
+    rows = []
+    for c in cases:
+        is_api = c.get("case_type") == "api"
+        assertions = []
+        for a in (c.get("assertions") or []):
+            t = ASSERT_TYPE_DISP.get(a.get("type"), a.get("type", ""))
+            key = f" {a['key']}" if a.get("key") else ""
+            op = ASSERT_OP_DISP.get(a.get("op"), a.get("op", ""))
+            assertions.append(f"{t}{key} {op} {a.get('value', '')}")
+        steps = c.get("steps", "")
+        if not isinstance(steps, str):
+            steps = json.dumps(steps, ensure_ascii=False)
+        rows.append([
+            c.get("id", ""),
+            c.get("title", ""),
+            CASE_TYPE_DISP.get(c.get("case_type"), c.get("case_type", "")),
+            c.get("priority", ""),
+            folder_names.get(c.get("folder_id"), ""),
+            c.get("precondition", ""),
+            steps,
+            c.get("expected", ""),
+            "、".join(str(t) for t in (c.get("tags") or [])),
+            c.get("method", "") if is_api else "",
+            c.get("url", "") if is_api else "",
+            json.dumps(c.get("headers"), ensure_ascii=False) if is_api and c.get("headers") else "",
+            c.get("body", "") if is_api else "",
+            " ; ".join(assertions),
+        ])
+    return rows
+
+
+def export_case_center(cases: List[dict], fmt: str, name: str,
+                       folder_names: Dict[int, str] = None) -> Tuple[bytes, str, str]:
+    """Export case-center cases to xlsx / csv. Return (bytes, filename, content_type)."""
+    fmt = (fmt or "xlsx").lower()
+    if fmt not in ("xlsx", "csv"):
+        raise ValueError(f"用例导出支持 xlsx / csv 格式，不支持: {fmt}")
+    safe_name = "".join(ch for ch in (name or "cases") if ch not in '\\/:*?"<>|').strip() or "cases"
+    rows = _case_center_rows(cases, folder_names)
+    cols = CASE_CENTER_COLS
+
+    if fmt == "xlsx":
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, Alignment, PatternFill
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "测试用例"
+        ws.append(cols)
+        for cell in ws[1]:
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = PatternFill("solid", fgColor="4472C4")
+            cell.alignment = Alignment(vertical="center")
+        for r in rows:
+            ws.append(r)
+        widths = [8, 34, 10, 8, 16, 26, 40, 38, 18, 10, 34, 28, 30, 36]
+        for i, w in enumerate(widths, 1):
+            ws.column_dimensions[chr(64 + i)].width = w
+        for row in ws.iter_rows(min_row=2):
+            for cell in row:
+                cell.alignment = Alignment(wrap_text=True, vertical="top")
+        ws.freeze_panes = "A2"
+        buf = io.BytesIO()
+        wb.save(buf)
+        return buf.getvalue(), f"{safe_name}.xlsx", FORMATS["xlsx"][1]
+
+    # csv（带 BOM，Excel 直接打开不乱码）
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(cols)
+    w.writerows(rows)
+    return ("\ufeff" + buf.getvalue()).encode("utf-8"), f"{safe_name}.csv", FORMATS["csv"][1]

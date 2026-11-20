@@ -31,6 +31,11 @@
           </select>
           <button class="btn" @click="loadCases">🔍 查询</button>
           <div class="spacer"></div>
+          <select class="select" v-model="exportFormat" style="width:120px" title="导出文件格式">
+            <option value="xlsx">Excel (.xlsx)</option>
+            <option value="csv">CSV (.csv)</option>
+          </select>
+          <button class="btn" @click="exportCases" :disabled="exporting" title="按当前筛选条件导出用例">{{ exporting ? '导出中...' : '⬇ 导出' }}</button>
           <button class="btn" @click="openSuiteDialog">📑 测试集</button>
           <button class="btn btn-primary" @click="openCaseDialog()">＋ 新建用例</button>
         </div>
@@ -140,6 +145,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { api, currentProject, notify } from '../api'
+import { token } from '../auth'
 
 const folders = ref([])
 const cases = ref([])
@@ -147,6 +153,8 @@ const suites = ref([])
 const selectedFolder = ref(null)
 const keyword = ref('')
 const typeFilter = ref('')
+const exportFormat = ref('xlsx')
+const exporting = ref(false)
 const caseDialog = ref(false)
 const suiteDialog = ref(false)
 const editing = ref(null)
@@ -184,6 +192,37 @@ async function loadCases() {
   cases.value = await api(url)
 }
 function selectFolder(f) { selectedFolder.value = f.id; loadCases() }
+
+async function exportCases() {
+  if (!currentProject.value) return
+  if (!cases.value.length) { notify('当前筛选条件下没有可导出的用例', 'error'); return }
+  exporting.value = true
+  try {
+    let url = `/api/cases/export?format=${exportFormat.value}`
+    if (selectedFolder.value) url += `&folder_id=${selectedFolder.value}`
+    else url += `&project_id=${currentProject.value.id}`
+    if (typeFilter.value) url += `&case_type=${typeFilter.value}`
+    if (keyword.value) url += `&keyword=${encodeURIComponent(keyword.value)}`
+    const headers = {}
+    if (token.value) headers['Authorization'] = `Bearer ${token.value}`
+    const resp = await fetch(url, { headers })
+    if (!resp.ok) { let m = resp.statusText; try { m = (await resp.json()).detail || m } catch (e) {} throw new Error(m) }
+    const blob = await resp.blob()
+    const cd = resp.headers.get('Content-Disposition') || ''
+    let name = `用例导出.${exportFormat.value}`
+    const m = cd.match(/filename\*=UTF-8''([^;]+)/)
+    if (m) { try { name = decodeURIComponent(m[1]) } catch (e) {} }
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = name
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(a.href)
+    notify(`已导出 ${name}`)
+  } catch (e) { notify('导出失败：' + e.message, 'error') }
+  finally { exporting.value = false }
+}
 async function loadSuites() {
   if (!currentProject.value) return
   suites.value = await api(`/api/suites?project_id=${currentProject.value.id}`)

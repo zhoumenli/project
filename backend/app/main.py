@@ -225,6 +225,57 @@ def list_cases(
     return q.order_by(models.Case.id.desc()).all()
 
 
+@app.get("/api/cases/export")
+def export_cases_file(
+    project_id: Optional[int] = None,
+    folder_id: Optional[int] = None,
+    case_type: Optional[str] = None,
+    keyword: Optional[str] = None,
+    format: str = Query("xlsx"),
+    db: Session = Depends(get_db),
+):
+    """Export case-center cases (same filters as the list view) to Excel / CSV."""
+    q = db.query(models.Case)
+    folder_names: dict = {}
+    if folder_id:
+        q = q.filter(models.Case.folder_id == folder_id)
+        f = db.query(models.Folder).filter(models.Folder.id == folder_id).first()
+        if f:
+            folder_names[f.id] = f.name
+    elif project_id:
+        flist = db.query(models.Folder).filter(models.Folder.project_id == project_id).all()
+        folder_names = {f.id: f.name for f in flist}
+        q = q.filter(models.Case.folder_id.in_([f.id for f in flist]))
+    if case_type:
+        q = q.filter(models.Case.case_type == case_type)
+    if keyword:
+        q = q.filter(models.Case.title.contains(keyword))
+    cases = q.order_by(models.Case.id.desc()).all()
+    if not cases:
+        raise HTTPException(400, "当前筛选条件下没有可导出的用例")
+    case_dicts = [{
+        "id": c.id, "title": c.title, "case_type": c.case_type, "priority": c.priority,
+        "folder_id": c.folder_id, "precondition": c.precondition, "steps": c.steps,
+        "expected": c.expected, "tags": c.tags or [], "method": c.method, "url": c.url,
+        "headers": c.headers or {}, "body": c.body, "assertions": c.assertions or [],
+    } for c in cases]
+
+    name = folder_names.get(folder_id) if folder_id else None
+    if not name and project_id:
+        p = db.query(models.Project).filter(models.Project.id == project_id).first()
+        name = p.name if p else None
+    stamp = datetime.now().strftime("%Y%m%d_%H%M")
+    base = f"{name or '测试用例'}_{stamp}"
+
+    try:
+        data, filename, ctype = exporter.export_case_center(case_dicts, format, base, folder_names)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    from urllib.parse import quote
+    headers = {"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"}
+    return Response(content=data, media_type=ctype, headers=headers)
+
+
 @app.post("/api/cases", response_model=schemas.CaseOut)
 def create_case(payload: schemas.CaseCreate, db: Session = Depends(get_db)):
     obj = models.Case(**payload.model_dump())
