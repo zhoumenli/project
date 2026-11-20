@@ -54,7 +54,7 @@
               <th style="width:42%">用例标题</th><th>类型</th><th>优先级</th><th>标签</th><th>更新时间</th><th style="width:150px">操作</th>
             </tr></thead>
             <tbody>
-              <tr v-for="c in cases" :key="c.id" :class="{ 'row-checked': selectedIds.has(c.id) }">
+              <tr v-for="c in pagedCases" :key="c.id" :class="{ 'row-checked': selectedIds.has(c.id) }">
                 <td><input type="checkbox" class="row-check" :checked="selectedIds.has(c.id)" @change="toggleRow(c)" /></td>
                 <td><b>{{ c.title }}</b><div class="muted" style="font-size:11px">#{{ c.id }} {{ c.url || c.expected.slice(0,30) }}</div></td>
                 <td><span class="tag">{{ typeName(c.case_type) }}</span></td>
@@ -70,6 +70,7 @@
             </tbody>
           </table>
         </div>
+        <div style="padding:0 18px 14px"><TablePager v-model:page="casePage" v-model:size="casePageSize" :total="cases.length" /></div>
       </div>
     </div>
   </div>
@@ -180,6 +181,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { api, currentProject, notify } from '../api'
 import { token } from '../auth'
+import TablePager from '../components/TablePager.vue'
 
 const folders = ref([])
 const cases = ref([])
@@ -194,8 +196,14 @@ const autoGenBase = ref('http://127.0.0.1:9001')
 const autoGenLoading = ref(false)
 const autoGenIds = ref([])   // 勾选模式：指定用例id；空数组=按筛选范围
 const selectedIds = ref(new Set())
+const casePage = ref(1)
+const casePageSize = ref(30)
+const pagedCases = computed(() => {
+  const start = (casePage.value - 1) * casePageSize.value
+  return cases.value.slice(start, start + casePageSize.value)
+})
 
-const allSelected = computed(() => cases.value.length > 0 && cases.value.every(c => selectedIds.value.has(c.id)))
+const allSelected = computed(() => pagedCases.value.length > 0 && pagedCases.value.every(c => selectedIds.value.has(c.id)))
 const someSelected = computed(() => selectedIds.value.size > 0)
 const selApiCount = computed(() => cases.value.filter(c => selectedIds.value.has(c.id) && c.case_type === 'api').length)
 
@@ -205,7 +213,12 @@ function toggleRow(c) {
   selectedIds.value = s
 }
 function toggleAll() {
-  selectedIds.value = allSelected.value ? new Set() : new Set(cases.value.map(c => c.id))
+  // 全选按钮只针对当前页的行
+  const pageIds = pagedCases.value.map(c => c.id)
+  const allOn = pageIds.every(id => selectedIds.value.has(id))
+  const s = new Set(selectedIds.value)
+  allOn ? pageIds.forEach(id => s.delete(id)) : pageIds.forEach(id => s.add(id))
+  selectedIds.value = s
 }
 function clearSel() { selectedIds.value = new Set() }
 
@@ -257,6 +270,7 @@ async function loadCases() {
   if (keyword.value) url += `&keyword=${encodeURIComponent(keyword.value)}`
   cases.value = await api(url)
   selectedIds.value = new Set()   // 列表刷新后清空勾选
+  casePage.value = 1              // 数据变化回到第一页
 }
 function selectFolder(f) { selectedFolder.value = f.id; loadCases() }
 

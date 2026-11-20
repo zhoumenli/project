@@ -154,7 +154,7 @@
         <table>
           <thead><tr><th>ID</th><th>文档名称</th><th>格式</th><th>用例数</th><th>引擎</th><th>状态</th><th>生成时间</th><th>操作</th></tr></thead>
           <tbody>
-            <tr v-for="h in history" :key="h.id">
+            <tr v-for="h in pagedHistory" :key="h.id">
               <td><b>#{{ h.id }}</b></td>
               <td>📄 {{ h.doc_name }}</td>
               <td><span class="tag gray">{{ h.doc_format }}</span></td>
@@ -171,6 +171,7 @@
             <tr v-if="!history.length"><td colspan="8"><div class="empty">暂无生成记录</div></td></tr>
           </tbody>
         </table>
+        <TablePager v-model:page="histPage" v-model:size="histPageSize" :total="history.length" />
       </div>
     </div>
 
@@ -194,6 +195,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { api, notify, currentProject } from '../api'
+import TablePager from '../components/TablePager.vue'
 
 const emit = defineEmits(['imported'])
 const props = defineProps({ folders: { type: Array, default: () => [] } })
@@ -206,6 +208,12 @@ const progress = ref(0)
 const generating = ref(false)
 const result = ref(null)
 const history = ref([])
+const histPage = ref(1)
+const histPageSize = ref(30)
+const pagedHistory = computed(() => {
+  const start = (histPage.value - 1) * histPageSize.value
+  return history.value.slice(start, start + histPageSize.value)
+})
 const backend = ref('local')
 const language = ref('zh')
 const outputTemplate = ref('')
@@ -319,7 +327,7 @@ async function generate() {
 }
 
 async function loadHistory() {
-  try { history.value = await api('/api/generations') } catch (e) {}
+  try { history.value = await api('/api/generations'); histPage.value = 1 } catch (e) {}
 }
 async function viewRecord(h) {
   result.value = await api(`/api/generations/${h.id}`)

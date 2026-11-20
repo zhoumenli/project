@@ -9,7 +9,7 @@
       <table>
         <thead><tr><th>执行ID</th><th>状态</th><th>用例统计</th><th>通过率</th><th>触发方式</th><th>开始时间</th><th>耗时</th><th>操作</th></tr></thead>
         <tbody>
-          <tr v-for="r in runs" :key="r.id">
+          <tr v-for="r in pagedRuns" :key="r.id">
             <td><b>#{{ r.id }}</b></td>
             <td><span class="badge" :class="r.status">{{ statusName(r.status) }}</span></td>
             <td><span class="badge passed">{{ r.passed }}</span> / <span class="badge failed">{{ r.failed }}</span> / <span class="badge skipped">{{ r.skipped }}</span></td>
@@ -22,6 +22,7 @@
           <tr v-if="!runs.length"><td colspan="8"><div class="empty">暂无执行记录</div></td></tr>
         </tbody>
       </table>
+      <div style="padding:0 18px 14px"><TablePager v-model:page="runPage" v-model:size="runPageSize" :total="runs.length" /></div>
     </div>
 
     <!-- run dialog -->
@@ -75,10 +76,17 @@
 </template>
 
 <script setup>
-import { ref, onMounted, reactive } from 'vue'
+import { ref, onMounted, reactive, computed } from 'vue'
 import { api, notify, currentProject } from '../api'
+import TablePager from '../components/TablePager.vue'
 
 const runs = ref([])
+const runPage = ref(1)
+const runPageSize = ref(30)
+const pagedRuns = computed(() => {
+  const start = (runPage.value - 1) * runPageSize.value
+  return runs.value.slice(start, start + runPageSize.value)
+})
 const suites = ref([])
 const envs = ref([])
 const allCases = ref([])
@@ -93,6 +101,7 @@ const expanded = reactive({})
 onMounted(loadAll)
 async function loadAll() {
   runs.value = await api('/api/runs')
+  runPage.value = 1
   envs.value = await api('/api/environments')
   suites.value = currentProject.value ? await api(`/api/suites?project_id=${currentProject.value.id}`) : []
   allCases.value = currentProject.value ? await api(`/api/cases?project_id=${currentProject.value.id}`) : []
