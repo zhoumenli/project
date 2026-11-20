@@ -47,10 +47,10 @@
           <button class="btn btn-sm btn-danger" @click="batchDelete">🗑 批量删除</button>
           <button class="btn btn-sm" @click="clearSel">取消选择</button>
         </div>
-        <div style="padding:0 18px 18px">
+        <div class="case-scroll" style="padding:0 18px 18px">
           <table>
             <thead><tr>
-              <th style="width:36px"><input type="checkbox" class="row-check" :checked="allSelected" @change="toggleAll" title="全选/全不选" /></th>
+              <th style="width:36px"><input type="checkbox" class="row-check" :checked="allSelected" :indeterminate="someSelected && !allSelected" @change="toggleAll" title="全选/全不选" /></th>
               <th style="width:42%">用例标题</th><th>类型</th><th>优先级</th><th>标签</th><th>更新时间</th><th style="width:150px">操作</th>
             </tr></thead>
             <tbody>
@@ -196,6 +196,7 @@ const autoGenIds = ref([])   // 勾选模式：指定用例id；空数组=按筛
 const selectedIds = ref(new Set())
 
 const allSelected = computed(() => cases.value.length > 0 && cases.value.every(c => selectedIds.value.has(c.id)))
+const someSelected = computed(() => selectedIds.value.size > 0)
 const selApiCount = computed(() => cases.value.filter(c => selectedIds.value.has(c.id) && c.case_type === 'api').length)
 
 function toggleRow(c) {
@@ -452,6 +453,13 @@ function fmtTime(t) { return t ? t.replace('T',' ').slice(0,16) : '-' }
 <style scoped>
 .assert-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
 .suite-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+/* 表格容器内滚动 + 表头吸顶：长列表滚动时全选框始终可见，随时可全部取消勾选 */
+.case-scroll { max-height: calc(100vh - 240px); overflow: auto; }
+.case-scroll table :deep(thead th) {
+  position: sticky; top: 0; z-index: 2;
+  background: #f8f9fd;
+  box-shadow: 0 1px 0 var(--border);
+}
 .batch-bar { display: flex; align-items: center; gap: 10px; margin: 0 18px 12px; padding: 10px 14px; background: var(--primary-light, #eef0ff); border: 1px solid var(--border); border-radius: 10px; animation: fadeIn .2s ease; }
 .batch-info { font-size: 13px; }
 .row-check { cursor: pointer; width: 15px; height: 15px; accent-color: var(--primary, #5b6bf5); }
