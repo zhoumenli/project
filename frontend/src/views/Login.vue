@@ -38,7 +38,8 @@
           <label>密码</label>
           <div class="input-wrap">
             <span class="field-icon">🔒</span>
-            <input class="input has-icon" type="password" v-model="form.password" autocomplete="current-password" placeholder="请输入密码" />
+            <input class="input has-icon has-eye" :type="showPwd ? 'text' : 'password'" v-model="form.password" autocomplete="current-password" placeholder="请输入密码" />
+            <button type="button" class="eye" @click="showPwd = !showPwd" :title="showPwd ? '隐藏密码' : '显示密码'" :aria-label="showPwd ? '隐藏密码' : '显示密码'">{{ showPwd ? '🙈' : '👁' }}</button>
           </div>
         </div>
         <div v-if="error" class="err">{{ error }}</div>
@@ -65,6 +66,7 @@ const route = useRoute()
 const form = ref({ username: '', password: '' })
 const error = ref('')
 const loading = ref(false)
+const showPwd = ref(false)
 
 // 被自动登出后跳转回登录页时，说明原因
 const notice = computed(() => {
@@ -190,6 +192,17 @@ async function submit() {
   transition: border-color .18s, box-shadow .18s, background .18s;
 }
 .input.has-icon { padding-left: 36px; }
+.input.has-eye { padding-right: 40px; }
+
+.eye {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  width: 30px; height: 30px; border: none; background: transparent; border-radius: 7px;
+  font-size: 15px; cursor: pointer; line-height: 1;
+  display: grid; place-items: center;
+  transition: background .15s, transform .15s;
+}
+.eye:hover { background: rgba(79, 95, 224, .08); transform: translateY(-50%) scale(1.08); }
+.eye:active { transform: translateY(-50%) scale(.95); }
 .input::placeholder { color: #b4bac8; }
 .input:hover { border-color: #c9d0e2; }
 .input:focus { outline: none; border-color: #4f5fe0; background: #fff; box-shadow: 0 0 0 4px rgba(79,95,224,.12); }

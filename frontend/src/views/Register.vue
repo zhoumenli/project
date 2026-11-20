@@ -13,11 +13,17 @@
         </div>
         <div class="field">
           <label>密码</label>
-          <input class="input" type="password" v-model="form.password" autocomplete="new-password" placeholder="8-32 位，需包含大小写字母和数字" />
+          <div class="input-wrap">
+            <input class="input has-eye" :type="showPwd ? 'text' : 'password'" v-model="form.password" autocomplete="new-password" placeholder="8-32 位，需包含大小写字母和数字" />
+            <button type="button" class="eye" @click="showPwd = !showPwd" :title="showPwd ? '隐藏密码' : '显示密码'">{{ showPwd ? '🙈' : '👁' }}</button>
+          </div>
         </div>
         <div class="field">
           <label>确认密码</label>
-          <input class="input" type="password" v-model="form.confirm" autocomplete="new-password" />
+          <div class="input-wrap">
+            <input class="input has-eye" :type="showConfirm ? 'text' : 'password'" v-model="form.confirm" autocomplete="new-password" placeholder="再次输入密码" />
+            <button type="button" class="eye" @click="showConfirm = !showConfirm" :title="showConfirm ? '隐藏密码' : '显示密码'">{{ showConfirm ? '🙈' : '👁' }}</button>
+          </div>
         </div>
         <div class="rules">
           <div :class="ruleCls(usernameOk)">✓ 用户名 3-20 位字母、数字或下划线</div>
@@ -44,6 +50,8 @@ const router = useRouter()
 const form = ref({ username: '', password: '', confirm: '' })
 const error = ref('')
 const loading = ref(false)
+const showPwd = ref(false)
+const showConfirm = ref(false)
 
 const usernameOk = computed(() => /^[A-Za-z0-9_]{3,20}$/.test(form.value.username))
 const lenOk = computed(() => form.value.password.length >= 8 && form.value.password.length <= 32)
@@ -97,6 +105,17 @@ async function submit() {
   font-size: 14px; background: #fff; color: #0f1420; transition: border-color .18s, box-shadow .18s;
 }
 .input:focus { outline: none; border-color: #4f5fe0; box-shadow: 0 0 0 3px rgba(79,95,224,.1); }
+.input-wrap { position: relative; }
+.input.has-eye { padding-right: 40px; }
+.eye {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  width: 30px; height: 30px; border: none; background: transparent; border-radius: 6px;
+  font-size: 15px; cursor: pointer; line-height: 1;
+  display: grid; place-items: center;
+  transition: background .15s, transform .15s;
+}
+.eye:hover { background: rgba(79, 95, 224, .08); transform: translateY(-50%) scale(1.08); }
+.eye:active { transform: translateY(-50%) scale(.95); }
 .rules {
   background: #fafbfc; border: 1px solid #eef0f4; border-radius: 6px;
   padding: 11px 13px; margin-bottom: 18px;
