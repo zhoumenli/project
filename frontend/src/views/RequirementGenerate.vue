@@ -28,6 +28,20 @@
               <div v-for="f in formats" :key="f.label" class="format-chip"><span>{{ f.icon }}</span>{{ f.label }}</div>
             </div>
             <div class="field" style="margin-top:16px">
+              <label>用例类型（可多选）</label>
+              <div class="ctype-row">
+                <label class="ctype" :class="{checked: caseTypes.includes('functional')}">
+                  <input type="checkbox" value="functional" v-model="caseTypes" />
+                  <div><b>功能测试用例</b><span>正向 / 边界 / 异常 / 状态流转等，操作步骤描述，人工执行</span></div>
+                </label>
+                <label class="ctype" :class="{checked: caseTypes.includes('api')}">
+                  <input type="checkbox" value="api" v-model="caseTypes" />
+                  <div><b>接口测试用例</b><span>自动提取需求中的接口，带方法 / URL / 请求体 / 断言，导入后可直接执行</span></div>
+                </label>
+              </div>
+              <div class="tpl-tip" v-if="!caseTypes.length" style="color:var(--danger)">请至少选择一种用例类型</div>
+            </div>
+            <div class="field">
               <label>生成引擎</label>
               <select class="select" v-model="backend">
                 <option value="local">本地智能引擎（离线、免费、开箱即用）</option>
@@ -53,8 +67,8 @@
               <div class="tpl-tip">可用占位符：<code>{编号}</code><code>{标题}</code><code>{维度}</code><code>{优先级}</code><code>{类型}</code><code>{前置条件}</code><code>{步骤}</code><code>{预期结果}</code><code>{标签}</code><code>{风险}</code>（也支持英文别名如 {no} {title} {steps} {expected}）</div>
               <button class="btn btn-sm" style="margin-top:6px" @click="resetTemplate">恢复默认模板</button>
             </div>
-            <button class="btn btn-primary" style="width:100%;padding:11px" @click="generate" :disabled="!file || generating">
-              {{ generating ? '⚙️ 正在解析文档并生成用例...' : '✨ 一键生成全方位测试用例' }}
+            <button class="btn btn-primary" style="width:100%;padding:11px" @click="generate" :disabled="!file || generating || !caseTypes.length">
+              {{ generating ? '⚙️ 正在解析文档并生成用例...' : `✨ 一键生成${caseTypes.length === 1 ? (caseTypes[0] === 'api' ? '接口测试用例' : '功能测试用例') : '测试用例（功能 + 接口）'}` }}
             </button>
           </div>
         </div>
@@ -112,6 +126,12 @@
                     </div>
                     <details class="struct-view">
                       <summary>查看结构化字段（用于导入用例中心）</summary>
+                      <div v-if="c.method" class="api-line">
+                        <b>接口：</b>
+                        <span class="tag method">{{ c.method }}</span>
+                        <code class="api-url">{{ c.url }}</code>
+                      </div>
+                      <div v-if="c.assertions?.length"><b>断言：</b><span v-for="(a,i) in c.assertions" :key="i" class="tag gray">{{ a.type }} {{ a.key ? a.key + ' ' : '' }}{{ a.op }} {{ a.value }}</span></div>
                       <div v-if="c.risk" class="risk">🎯 {{ c.risk }}</div>
                       <div><b>前置条件：</b>{{ c.precondition }}</div>
                       <div><b>步骤：</b><pre class="code" style="white-space:pre-wrap">{{ c.steps }}</pre></div>
@@ -173,7 +193,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { api, notify } from '../api'
+import { api, notify, currentProject } from '../api'
 
 const emit = defineEmits(['imported'])
 const props = defineProps({ folders: { type: Array, default: () => [] } })
@@ -190,6 +210,8 @@ const backend = ref('local')
 const language = ref('zh')
 const outputTemplate = ref('')
 const selectedDims = ref([])
+// 用例类型：functional=功能测试用例，api=接口测试用例
+const caseTypes = ref(['functional', 'api'])
 const filterDim = ref('')
 const filterPriority = ref('')
 const expanded = ref({})
@@ -231,6 +253,7 @@ onMounted(() => {
   selectedDims.value = [...allDims]
   resetTemplate()
   loadHistory()
+  if (!props.folders?.length) loadFolders()
 })
 
 async function copyText(text) {
@@ -247,7 +270,15 @@ watch(() => outputTemplate.value, (v) => {
 })
 watch(language, () => { if (!templateTouched) outputTemplate.value = DEFAULT_TEMPLATES[language.value] })
 
-const allFolders = computed(() => props.folders)
+const allFolders = computed(() => (props.folders?.length ? props.folders : localFolders.value))
+
+// 作为独立页面使用时（路由 /gen-cases），自行加载目录；嵌入其他页面时用 props.folders
+const localFolders = ref([])
+async function loadFolders() {
+  if (!currentProject.value) return
+  try { localFolders.value = await api(`/api/folders?project_id=${currentProject.value.id}`) } catch (e) {}
+}
+watch(() => currentProject.value?.id, () => { if (!props.folders?.length) loadFolders() })
 const filteredCases = computed(() => {
   if (!result.value) return []
   return result.value.cases.filter(c =>
@@ -264,6 +295,7 @@ function fmtTime(t) { return t ? t.replace('T',' ').slice(0,19) : '-' }
 
 async function generate() {
   if (!file.value) { notify('请先上传文档', 'error'); return }
+  if (!caseTypes.value.length) { notify('请至少选择一种用例类型', 'error'); return }
   generating.value = true
   uploading.value = true
   progress.value = 20
@@ -275,6 +307,7 @@ async function generate() {
     fd.append('dimensions', selectedDims.value.join(','))
     fd.append('language', language.value)
     fd.append('template', outputTemplate.value)
+    fd.append('case_types', caseTypes.value.join(','))
     progress.value = 50
     result.value = await api('/api/generate', { method: 'POST', body: fd, rawBody: true })
     progress.value = 100
@@ -293,9 +326,11 @@ async function viewRecord(h) {
   expanded.value = {}; filterDim.value = ''; filterPriority.value = ''
   view.value = 'create'
 }
-function openImport(source) {
+async function openImport(source) {
   importSource.value = source || result.value
-  importFolderId.value = allFolders.value[0]?.id
+  // 目录尚未加载完（如刚进入页面就点击导入）时先加载，避免下拉为空
+  if (!allFolders.value.length) await loadFolders()
+  importFolderId.value = importFolderId.value || allFolders.value[0]?.id
   importModal.value = true
 }
 async function exportResult() {
@@ -355,6 +390,20 @@ async function delRecord(h) {
 .format-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
 .format-chip { padding: 4px 9px; border: 1px solid var(--border); border-radius: 6px; font-size: 11px; display: flex; align-items: center; gap: 4px; background: #fff; }
 .dim-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.ctype-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ctype {
+  display: flex; gap: 9px; align-items: flex-start; cursor: pointer;
+  border: 1.5px solid var(--border); border-radius: 8px; padding: 11px 12px;
+  transition: border-color .15s, background .15s; background: #fff;
+}
+.ctype:hover { border-color: var(--primary); }
+.ctype.checked { border-color: var(--primary); background: #f4f6ff; }
+.ctype input { margin-top: 3px; accent-color: var(--primary); }
+.ctype b { font-size: 13px; display: block; margin-bottom: 3px; }
+.ctype span { font-size: 11px; color: var(--muted); line-height: 1.5; display: block; }
+.api-line { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+.api-line .method { background: #eef1ff; color: var(--primary); font-weight: 700; }
+.api-url { background: #f4f6f8; padding: 2px 7px; border-radius: 4px; font-size: 11px; font-family: Consolas, monospace; word-break: break-all; }
 .dim { font-size: 12px; display: flex; align-items: center; gap: 5px; cursor: pointer; padding: 4px 0; }
 .dim input { accent-color: var(--primary); }
 .radio-row { display: flex; gap: 16px; }

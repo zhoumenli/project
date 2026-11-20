@@ -7,6 +7,7 @@ const routes = [
   { path: '/register', component: () => import('./views/Register.vue'), meta: { title: '注册', public: true } },
   { path: '/dashboard', component: () => import('./views/Dashboard.vue'), meta: { title: '工作台' } },
   { path: '/cases', component: () => import('./views/CaseCenter.vue'), meta: { title: '用例中心' } },
+  { path: '/gen-cases', component: () => import('./views/RequirementGenerate.vue'), meta: { title: '需求生成用例' } },
   { path: '/api-test', component: () => import('./views/ApiTest.vue'), meta: { title: '接口测试' } },
   { path: '/ui-test', component: () => import('./views/UiTest.vue'), meta: { title: 'Web UI 自动化' } },
   { path: '/locator', component: () => import('./views/LocatorExtractor.vue'), meta: { title: '元素定位' } },

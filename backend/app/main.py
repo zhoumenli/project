@@ -532,6 +532,7 @@ async def generate_from_document(
     dimensions: str = Form(""),
     language: str = Form("zh"),
     template: str = Form(""),
+    case_types: str = Form(""),
     db: Session = Depends(get_db),
 ):
     """Upload a requirement document, parse it, and auto-generate comprehensive test cases."""
@@ -558,11 +559,14 @@ async def generate_from_document(
         raise HTTPException(400, "未能从文档中提取到文本内容")
 
     selected_dims = [d for d in dimensions.split(",") if d] if dimensions else None
+    # 用例类型：functional=功能测试用例，api=接口测试用例；为空默认两类都生成
+    case_type_list = [t.strip() for t in (case_types or "").split(",") if t.strip()]
     cases = generate_cases(text, os.path.splitext(filename)[0], {
         "backend": backend,
         "dimensions": selected_dims,
         "language": language,
         "template": template,
+        "case_types": case_type_list,
     })
     if not cases:
         raise HTTPException(400, "未能生成用例，请检查文档内容是否充足")
@@ -657,6 +661,14 @@ def import_generation(gid: int, payload: schemas.GenerationImport, db: Session =
             steps=c.get("steps", ""),
             expected=c.get("expected", ""),
         )
+        if obj.case_type == "api":
+            # 接口用例透传可执行配置，导入后可直接在接口测试/批量执行中运行
+            obj.method = str(c.get("method", "GET")).upper()
+            obj.url = c.get("url", "")
+            obj.headers = c.get("headers") or {"Content-Type": "application/json"}
+            obj.body = c.get("body", "")
+            obj.assertions = c.get("assertions") or []
+            obj.extractors = c.get("extractors") or []
         db.add(obj)
         imported += 1
     r.imported = True

@@ -1,14 +1,6 @@
 <template>
   <div>
-    <div class="tabs" style="margin-bottom:18px">
-      <div class="tab" :class="{active: mainTab==='list'}" @click="mainTab='list'">📋 用例列表</div>
-      <div class="tab" :class="{active: mainTab==='generate'}" @click="mainTab='generate'">✨ 需求生成用例 <span class="badge passed" style="margin-left:4px">AI</span></div>
-    </div>
-
-    <div v-if="mainTab==='generate'">
-      <RequirementGenerate :folders="folders" @imported="loadAll" />
-    </div>
-    <div v-else class="row" style="align-items:flex-start">
+    <div class="row" style="align-items:flex-start">
     <!-- folder tree -->
     <div class="panel" style="width:250px;flex-shrink:0">
       <div class="panel-head"><h2>用例目录</h2><button class="btn btn-sm" @click="addFolder">＋</button></div>
@@ -148,9 +140,6 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { api, currentProject, notify } from '../api'
-import RequirementGenerate from './RequirementGenerate.vue'
-
-const mainTab = ref('list')
 
 const folders = ref([])
 const cases = ref([])
