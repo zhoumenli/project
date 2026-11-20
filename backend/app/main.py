@@ -19,6 +19,7 @@ from .case_generator import generate_cases, DIMENSIONS
 from . import locator_extractor
 from . import browser_session
 from . import exporter
+from . import coverage as coverage_engine
 from . import interactive_session
 from . import auth
 
@@ -306,6 +307,47 @@ def delete_case(cid: int, db: Session = Depends(get_db)):
     db.delete(obj)
     db.commit()
     return {"ok": True}
+
+
+# ============================================================
+# Requirement coverage analysis
+# ============================================================
+class CoverageAnalyze(schemas.BaseModel):
+    project_id: int
+    requirement_text: Optional[str] = None
+    generation_id: Optional[int] = None
+
+
+@app.post("/api/coverage/analyze")
+def coverage_analyze(payload: CoverageAnalyze, db: Session = Depends(get_db)):
+    """Analyze how well existing cases cover a requirement text (or a saved generation's text)."""
+    text = (payload.requirement_text or "").strip()
+    if payload.generation_id:
+        r = db.query(models.GenerationRecord).filter(models.GenerationRecord.id == payload.generation_id).first()
+        if not r:
+            raise HTTPException(404, "生成记录不存在")
+        if not text:
+            text = (r.requirement_text or "").strip()
+    if not text:
+        raise HTTPException(400, "请提供需求文本或选择生成记录")
+
+    flist = db.query(models.Folder).filter(models.Folder.project_id == payload.project_id).all()
+    folder_names = {f.id: f.name for f in flist}
+    cases = db.query(models.Case).filter(models.Case.folder_id.in_([f.id for f in flist])).all()
+    case_dicts = [{
+        "id": c.id, "title": c.title, "case_type": c.case_type, "priority": c.priority,
+        "folder_id": c.folder_id, "precondition": c.precondition, "steps": c.steps,
+        "expected": c.expected, "tags": c.tags or [], "method": c.method, "url": c.url,
+    } for c in cases]
+
+    result = coverage_engine.analyze(text, case_dicts)
+    result["summary"]["project_id"] = payload.project_id
+    # 补充目录名，便于前端展示用例归属
+    for m in result["requirement_points"]:
+        for match in m["matched"]:
+            obj = next((c for c in case_dicts if c["id"] == match.get("id")), None)
+            match["folder"] = folder_names.get(obj["folder_id"], "") if obj else ""
+    return result
 
 
 # ============================================================
