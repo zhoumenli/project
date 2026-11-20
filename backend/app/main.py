@@ -234,13 +234,19 @@ def export_cases_file(
     folder_id: Optional[int] = None,
     case_type: Optional[str] = None,
     keyword: Optional[str] = None,
+    case_ids: Optional[str] = Query(None, description="逗号分隔的用例id，勾选批量导出时优先使用"),
     format: str = Query("xlsx"),
     db: Session = Depends(get_db),
 ):
     """Export case-center cases (same filters as the list view) to Excel / CSV."""
     q = db.query(models.Case)
     folder_names: dict = {}
-    if folder_id:
+    if case_ids:
+        ids = [int(x) for x in case_ids.split(",") if x.strip().lstrip("-").isdigit()]
+        q = q.filter(models.Case.id.in_(ids))
+        flist = db.query(models.Folder).all()
+        folder_names = {f.id: f.name for f in flist}
+    elif folder_id:
         q = q.filter(models.Case.folder_id == folder_id)
         f = db.query(models.Folder).filter(models.Folder.id == folder_id).first()
         if f:
@@ -309,6 +315,20 @@ def delete_case(cid: int, db: Session = Depends(get_db)):
     db.delete(obj)
     db.commit()
     return {"ok": True}
+
+
+class CaseBatchDelete(schemas.BaseModel):
+    ids: list[int]
+
+
+@app.post("/api/cases/batch-delete")
+def batch_delete_cases(payload: CaseBatchDelete, db: Session = Depends(get_db)):
+    """批量删除用例"""
+    if not payload.ids:
+        raise HTTPException(400, "请提供要删除的用例 id")
+    n = db.query(models.Case).filter(models.Case.id.in_(payload.ids)).delete(synchronize_session=False)
+    db.commit()
+    return {"ok": True, "deleted": n}
 
 
 # ============================================================

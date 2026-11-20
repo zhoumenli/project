@@ -40,11 +40,22 @@
           <button class="btn" @click="openSuiteDialog">📑 测试集</button>
           <button class="btn btn-primary" @click="openCaseDialog()">＋ 新建用例</button>
         </div>
+        <div v-if="selectedIds.size" class="batch-bar">
+          <span class="batch-info">已选 <b>{{ selectedIds.size }}</b> 条（接口 {{ selApiCount }} 条）</span>
+          <button class="btn btn-sm" @click="batchExport">⬇ 批量导出</button>
+          <button class="btn btn-sm" @click="batchAutoGen">🤖 生成自动化</button>
+          <button class="btn btn-sm btn-danger" @click="batchDelete">🗑 批量删除</button>
+          <button class="btn btn-sm" @click="clearSel">取消选择</button>
+        </div>
         <div style="padding:0 18px 18px">
           <table>
-            <thead><tr><th style="width:42%">用例标题</th><th>类型</th><th>优先级</th><th>标签</th><th>更新时间</th><th style="width:150px">操作</th></tr></thead>
+            <thead><tr>
+              <th style="width:36px"><input type="checkbox" class="row-check" :checked="allSelected" @change="toggleAll" title="全选/全不选" /></th>
+              <th style="width:42%">用例标题</th><th>类型</th><th>优先级</th><th>标签</th><th>更新时间</th><th style="width:150px">操作</th>
+            </tr></thead>
             <tbody>
-              <tr v-for="c in cases" :key="c.id">
+              <tr v-for="c in cases" :key="c.id" :class="{ 'row-checked': selectedIds.has(c.id) }">
+                <td><input type="checkbox" class="row-check" :checked="selectedIds.has(c.id)" @change="toggleRow(c)" /></td>
                 <td><b>{{ c.title }}</b><div class="muted" style="font-size:11px">#{{ c.id }} {{ c.url || c.expected.slice(0,30) }}</div></td>
                 <td><span class="tag">{{ typeName(c.case_type) }}</span></td>
                 <td><span class="badge" :class="c.priority">{{ c.priority }}</span></td>
@@ -55,7 +66,7 @@
                   <button class="btn btn-sm btn-danger" @click="delCase(c)">删除</button>
                 </td>
               </tr>
-              <tr v-if="!cases.length"><td colspan="6"><div class="empty">该目录下暂无用例，点击右上角新建</div></td></tr>
+              <tr v-if="!cases.length"><td colspan="7"><div class="empty">该目录下暂无用例，点击右上角新建</div></td></tr>
             </tbody>
           </table>
         </div>
@@ -181,11 +192,33 @@ const exporting = ref(false)
 const autoGenDialog = ref(false)
 const autoGenBase = ref('http://127.0.0.1:9001')
 const autoGenLoading = ref(false)
+const autoGenIds = ref([])   // 勾选模式：指定用例id；空数组=按筛选范围
+const selectedIds = ref(new Set())
+
+const allSelected = computed(() => cases.value.length > 0 && cases.value.every(c => selectedIds.value.has(c.id)))
+const selApiCount = computed(() => cases.value.filter(c => selectedIds.value.has(c.id) && c.case_type === 'api').length)
+
+function toggleRow(c) {
+  const s = new Set(selectedIds.value)
+  s.has(c.id) ? s.delete(c.id) : s.add(c.id)
+  selectedIds.value = s
+}
+function toggleAll() {
+  selectedIds.value = allSelected.value ? new Set() : new Set(cases.value.map(c => c.id))
+}
+function clearSel() { selectedIds.value = new Set() }
 
 const autoGenScope = computed(() => {
+  if (autoGenIds.value.length) {
+    return `已勾选 ${autoGenIds.value.length} 条用例，其中接口用例 ${autoGenApiCount.value} 条将参与生成`
+  }
   const apiCount = cases.value.filter(c => c.case_type === 'api').length
   const scope = selectedFolder.value ? '当前目录' : '当前项目全部目录'
   return `${scope}下共 ${cases.value.length} 条用例，其中接口用例 ${apiCount} 条将参与生成`
+})
+const autoGenApiCount = computed(() => {
+  if (!autoGenIds.value.length) return 0
+  return cases.value.filter(c => autoGenIds.value.includes(c.id) && c.case_type === 'api').length
 })
 const caseDialog = ref(false)
 const suiteDialog = ref(false)
@@ -222,6 +255,7 @@ async function loadCases() {
   if (typeFilter.value) url += `&case_type=${typeFilter.value}`
   if (keyword.value) url += `&keyword=${encodeURIComponent(keyword.value)}`
   cases.value = await api(url)
+  selectedIds.value = new Set()   // 列表刷新后清空勾选
 }
 function selectFolder(f) { selectedFolder.value = f.id; loadCases() }
 
@@ -258,7 +292,55 @@ async function exportCases() {
 
 function openAutoGen() {
   if (!cases.value.some(c => c.case_type === 'api')) { notify('当前范围内没有接口用例，无法生成自动化项目', 'error'); return }
+  autoGenIds.value = []
   autoGenDialog.value = true
+}
+
+function batchAutoGen() {
+  const ids = [...selectedIds.value]
+  if (!cases.value.some(c => ids.includes(c.id) && c.case_type === 'api')) {
+    notify('勾选的用例中没有接口用例，无法生成自动化项目', 'error'); return
+  }
+  autoGenIds.value = ids
+  autoGenDialog.value = true
+}
+
+async function batchExport() {
+  const ids = [...selectedIds.value]
+  if (!ids.length) return
+  exporting.value = true
+  try {
+    const url = `/api/cases/export?format=${exportFormat.value}&case_ids=${ids.join(',')}`
+    const headers = {}
+    if (token.value) headers['Authorization'] = `Bearer ${token.value}`
+    const resp = await fetch(url, { headers })
+    if (!resp.ok) { let m = resp.statusText; try { m = (await resp.json()).detail || m } catch (e) {} throw new Error(m) }
+    const blob = await resp.blob()
+    const cd = resp.headers.get('Content-Disposition') || ''
+    let name = `用例导出.${exportFormat.value}`
+    const m = cd.match(/filename\*=UTF-8''([^;]+)/)
+    if (m) { try { name = decodeURIComponent(m[1]) } catch (e) {} }
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = name
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(a.href)
+    notify(`已导出 ${ids.length} 条用例 → ${name}`)
+  } catch (e) { notify('导出失败：' + e.message, 'error') }
+  finally { exporting.value = false }
+}
+
+async function batchDelete() {
+  const ids = [...selectedIds.value]
+  if (!ids.length) return
+  if (!confirm(`确定批量删除选中的 ${ids.length} 条用例？此操作不可恢复！`)) return
+  try {
+    const r = await api('/api/cases/batch-delete', { method: 'POST', body: { ids } })
+    notify(`已删除 ${r.deleted} 条用例`)
+    loadCases()
+  } catch (e) { notify('删除失败：' + e.message, 'error') }
 }
 
 async function doAutoGen() {
@@ -269,8 +351,11 @@ async function doAutoGen() {
       project_id: currentProject.value.id,
       base_url: autoGenBase.value.trim() || 'http://127.0.0.1:9001',
     }
-    if (selectedFolder.value) body.folder_id = selectedFolder.value
-    if (keyword.value) body.keyword = keyword.value
+    if (autoGenIds.value.length) body.case_ids = autoGenIds.value
+    else {
+      if (selectedFolder.value) body.folder_id = selectedFolder.value
+      if (keyword.value) body.keyword = keyword.value
+    }
     const headers = { 'Content-Type': 'application/json' }
     if (token.value) headers['Authorization'] = `Bearer ${token.value}`
     const resp = await fetch('/api/cases/autogen', { method: 'POST', headers, body: JSON.stringify(body) })
@@ -288,6 +373,7 @@ async function doAutoGen() {
     a.remove()
     URL.revokeObjectURL(a.href)
     autoGenDialog.value = false
+    autoGenIds.value = []
     notify(`已生成 ${name}，解压后 pip install -r requirements.txt 即可运行`)
   } catch (e) { notify('生成失败：' + e.message, 'error') }
   finally { autoGenLoading.value = false }
@@ -366,4 +452,8 @@ function fmtTime(t) { return t ? t.replace('T',' ').slice(0,16) : '-' }
 <style scoped>
 .assert-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
 .suite-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.batch-bar { display: flex; align-items: center; gap: 10px; margin: 0 18px 12px; padding: 10px 14px; background: var(--primary-light, #eef0ff); border: 1px solid var(--border); border-radius: 10px; animation: fadeIn .2s ease; }
+.batch-info { font-size: 13px; }
+.row-check { cursor: pointer; width: 15px; height: 15px; accent-color: var(--primary, #5b6bf5); }
+.row-checked { background: rgba(91, 107, 245, 0.06); }
 </style>
