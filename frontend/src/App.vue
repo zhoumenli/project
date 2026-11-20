@@ -73,6 +73,7 @@ const navItems = [
   { path: '/coverage', icon: '🎯', title: '覆盖率分析' },
   { path: '/api-test', icon: '🔌', title: '接口测试' },
   { path: '/ui-test', icon: '🌐', title: 'Web UI 自动化' },
+  { path: '/api-autogen', icon: '🤖', title: '接口自动化' },
   { path: '/locator', icon: '🎯', title: '元素定位' },
   { path: '/runs', icon: '📈', title: '执行报告' },
   { path: '/environments', icon: '⚙️', title: '环境管理' },

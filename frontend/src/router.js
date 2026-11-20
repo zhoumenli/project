@@ -11,6 +11,7 @@ const routes = [
   { path: '/coverage', component: () => import('./views/CoverageAnalysis.vue'), meta: { title: '覆盖率分析' } },
   { path: '/api-test', component: () => import('./views/ApiTest.vue'), meta: { title: '接口测试' } },
   { path: '/ui-test', component: () => import('./views/UiTest.vue'), meta: { title: 'Web UI 自动化' } },
+  { path: '/api-autogen', component: () => import('./views/AutoGen.vue'), meta: { title: '接口自动化' } },
   { path: '/locator', component: () => import('./views/LocatorExtractor.vue'), meta: { title: '元素定位' } },
   { path: '/runs', component: () => import('./views/Runs.vue'), meta: { title: '执行报告' } },
   { path: '/environments', component: () => import('./views/Environments.vue'), meta: { title: '环境管理' } },

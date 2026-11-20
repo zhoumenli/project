@@ -36,7 +36,7 @@
             <option value="csv">CSV (.csv)</option>
           </select>
           <button class="btn" @click="exportCases" :disabled="exporting" title="按当前筛选条件导出用例">{{ exporting ? '导出中...' : '⬇ 导出' }}</button>
-          <button class="btn" @click="openAutoGen" title="按接口自动化框架模板生成可运行的 pytest 项目">🤖 自动化</button>
+          <button class="btn" @click="goAutoGen" title="跳转到接口自动化页面生成可运行的 pytest 项目">🤖 自动化</button>
           <button class="btn" @click="openSuiteDialog">📑 测试集</button>
           <button class="btn btn-primary" @click="openCaseDialog()">＋ 新建用例</button>
         </div>
@@ -133,28 +133,6 @@
     </div>
   </div>
 
-  <!-- autogen dialog -->
-  <div v-if="autoGenDialog" class="modal-mask" @click.self="autoGenDialog=false">
-    <div class="modal">
-      <div class="modal-head">生成接口自动化项目<button class="close-x" @click="autoGenDialog=false">×</button></div>
-      <div class="modal-body">
-        <div class="field"><label>生成范围</label>
-          <div class="muted" style="font-size:13px">{{ autoGenScope }}</div>
-        </div>
-        <div class="field"><label>接口基础地址（BASE_URL）</label>
-          <input class="input" v-model="autoGenBase" placeholder="http://127.0.0.1:9001" />
-        </div>
-        <div class="muted" style="font-size:12px">按接口自动化框架模板（pytest + requests + allure 数据驱动）生成完整可运行项目：
-          config.py / caseData/data.yaml / testcase/&lt;模块&gt;/test_xxx.py，断言与变量提取自动转换，zip 下载解压后
-          <code>pip install -r requirements.txt</code> 即可 <code>pytest</code> 运行。仅生成接口类型用例。</div>
-      </div>
-      <div class="modal-foot">
-        <button class="btn" @click="autoGenDialog=false">取消</button>
-        <button class="btn btn-primary" @click="doAutoGen" :disabled="autoGenLoading">{{ autoGenLoading ? '生成中...' : '🤖 生成并下载' }}</button>
-      </div>
-    </div>
-  </div>
-
   <!-- suite dialog -->
   <div v-if="suiteDialog" class="modal-mask" @click.self="suiteDialog=false">
     <div class="modal">
@@ -179,9 +157,12 @@
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { api, currentProject, notify } from '../api'
 import { token } from '../auth'
 import TablePager from '../components/TablePager.vue'
+
+const router = useRouter()
 
 const folders = ref([])
 const cases = ref([])
@@ -191,10 +172,6 @@ const keyword = ref('')
 const typeFilter = ref('')
 const exportFormat = ref('xlsx')
 const exporting = ref(false)
-const autoGenDialog = ref(false)
-const autoGenBase = ref('http://127.0.0.1:9001')
-const autoGenLoading = ref(false)
-const autoGenIds = ref([])   // 勾选模式：指定用例id；空数组=按筛选范围
 const selectedIds = ref(new Set())
 const casePage = ref(1)
 const casePageSize = ref(30)
@@ -222,18 +199,6 @@ function toggleAll() {
 }
 function clearSel() { selectedIds.value = new Set() }
 
-const autoGenScope = computed(() => {
-  if (autoGenIds.value.length) {
-    return `已勾选 ${autoGenIds.value.length} 条用例，其中接口用例 ${autoGenApiCount.value} 条将参与生成`
-  }
-  const apiCount = cases.value.filter(c => c.case_type === 'api').length
-  const scope = selectedFolder.value ? '当前目录' : '当前项目全部目录'
-  return `${scope}下共 ${cases.value.length} 条用例，其中接口用例 ${apiCount} 条将参与生成`
-})
-const autoGenApiCount = computed(() => {
-  if (!autoGenIds.value.length) return 0
-  return cases.value.filter(c => autoGenIds.value.includes(c.id) && c.case_type === 'api').length
-})
 const caseDialog = ref(false)
 const suiteDialog = ref(false)
 const editing = ref(null)
@@ -306,9 +271,7 @@ async function exportCases() {
 }
 
 function openAutoGen() {
-  if (!cases.value.some(c => c.case_type === 'api')) { notify('当前范围内没有接口用例，无法生成自动化项目', 'error'); return }
-  autoGenIds.value = []
-  autoGenDialog.value = true
+  router.push('/api-autogen')
 }
 
 function batchAutoGen() {
@@ -316,8 +279,7 @@ function batchAutoGen() {
   if (!cases.value.some(c => ids.includes(c.id) && c.case_type === 'api')) {
     notify('勾选的用例中没有接口用例，无法生成自动化项目', 'error'); return
   }
-  autoGenIds.value = ids
-  autoGenDialog.value = true
+  router.push({ path: '/api-autogen', query: { ids: ids.join(',') } })
 }
 
 async function batchExport() {
@@ -358,41 +320,6 @@ async function batchDelete() {
   } catch (e) { notify('删除失败：' + e.message, 'error') }
 }
 
-async function doAutoGen() {
-  if (!currentProject.value) return
-  autoGenLoading.value = true
-  try {
-    const body = {
-      project_id: currentProject.value.id,
-      base_url: autoGenBase.value.trim() || 'http://127.0.0.1:9001',
-    }
-    if (autoGenIds.value.length) body.case_ids = autoGenIds.value
-    else {
-      if (selectedFolder.value) body.folder_id = selectedFolder.value
-      if (keyword.value) body.keyword = keyword.value
-    }
-    const headers = { 'Content-Type': 'application/json' }
-    if (token.value) headers['Authorization'] = `Bearer ${token.value}`
-    const resp = await fetch('/api/cases/autogen', { method: 'POST', headers, body: JSON.stringify(body) })
-    if (!resp.ok) { let m = resp.statusText; try { m = (await resp.json()).detail || m } catch (e) {} throw new Error(m) }
-    const blob = await resp.blob()
-    const cd = resp.headers.get('Content-Disposition') || ''
-    let name = '接口自动化项目.zip'
-    const m = cd.match(/filename\*=UTF-8''([^;]+)/)
-    if (m) { try { name = decodeURIComponent(m[1]) } catch (e) {} }
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    a.download = name
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
-    URL.revokeObjectURL(a.href)
-    autoGenDialog.value = false
-    autoGenIds.value = []
-    notify(`已生成 ${name}，解压后 pip install -r requirements.txt 即可运行`)
-  } catch (e) { notify('生成失败：' + e.message, 'error') }
-  finally { autoGenLoading.value = false }
-}
 async function loadSuites() {
   if (!currentProject.value) return
   suites.value = await api(`/api/suites?project_id=${currentProject.value.id}`)
