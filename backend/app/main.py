@@ -21,6 +21,7 @@ from . import locator_extractor
 from . import browser_session
 from . import exporter
 from . import coverage as coverage_engine
+from . import ui_autogen as ui_autogen_engine
 from . import api_autogen
 from . import interactive_session
 from . import auth
@@ -428,6 +429,37 @@ def autogen_api_project(payload: AutoGenRequest, db: Session = Depends(get_db)):
         raise HTTPException(500, f"模板文件缺失: {e}")
     from urllib.parse import quote
     headers = {"Content-Disposition": f"attachment; filename*=UTF-8''{quote(top + '.zip')}"}
+    return Response(content=data, media_type="application/zip", headers=headers)
+
+
+# ============================================================
+# UI automation project generation (step-flow orchestration)
+# ============================================================
+class UiFlowStep(schemas.BaseModel):
+    action: str
+    target: Optional[str] = ""
+    value: Optional[str] = ""
+
+
+class UiFlow(schemas.BaseModel):
+    title: str
+    steps: list[UiFlowStep]
+
+
+class UiAutoGenRequest(schemas.BaseModel):
+    flows: list[UiFlow]
+
+
+@app.post("/api/ui/autogen")
+def ui_autogen_project(payload: UiAutoGenRequest):
+    """按步骤编排 + UI 框架模板，生成可运行的 pytest+Playwright 项目 (zip)。"""
+    flows = [{"title": f.title, "steps": [s.model_dump() for s in f.steps]} for f in payload.flows]
+    try:
+        data, filename = ui_autogen_engine.generate_ui_project(flows)
+    except (ValueError, FileNotFoundError) as e:
+        raise HTTPException(400, str(e))
+    from urllib.parse import quote
+    headers = {"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"}
     return Response(content=data, media_type="application/zip", headers=headers)
 
 

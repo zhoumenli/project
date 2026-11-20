@@ -2,56 +2,86 @@
   <div class="row" style="align-items:flex-start">
     <div class="col">
       <div class="panel">
-        <div class="panel-head"><h2>🌐 UI 自动化用例</h2><router-link to="/cases" class="btn btn-sm">管理全部用例 →</router-link></div>
+        <div class="panel-head"><h2>🌐 UI 自动化 · 流程编排</h2><button class="btn btn-sm" @click="addFlow">＋ 新建流程</button></div>
         <div class="panel-body">
-          <div class="field-row">
-            <div class="field col"><label>选择 UI 用例</label><select class="select" v-model="selectedId" @change="loadSteps"><option :value="null">-- 请选择 --</option><option v-for="c in uiCases" :key="c.id" :value="c.id">{{ c.title }}</option></select></div>
-            <div class="field" style="width:160px;align-self:flex-end"><button class="btn btn-primary" style="width:100%" @click="runCase" :disabled="!selectedId || running">{{ running ? '运行中...' : '▶ 运行用例' }}</button></div>
-          </div>
-          <div v-if="selectedId">
-            <div class="muted" style="font-size:12px;margin:8px 0">用例步骤（点击步骤可编辑，拖拽暂不支持）</div>
-            <div class="step-list">
-              <div v-for="(s,i) in steps" :key="i" class="step" :class="{editing: editIdx===i}" @click="editIdx=i">
-                <span class="step-no">{{ i+1 }}</span>
-                <template v-if="editIdx!==i">
-                  <span class="step-action tag">{{ s.action }}</span>
-                  <span class="step-target">{{ s.target || '(空)' }}</span>
-                  <span v-if="s.value" class="muted">= {{ s.value }}</span>
-                  <button class="btn btn-sm btn-danger" style="margin-left:auto" @click.stop="steps.splice(i,1)">×</button>
-                </template>
-                <template v-else>
-                  <input class="input" v-model="s.action" style="width:110px" list="actions" />
-                  <datalist id="actions"><option v-for="a in actions" :key="a" :value="a"></option></datalist>
-                  <input class="input" v-model="s.target" placeholder="选择器 / URL" style="flex:1" />
-                  <input class="input" v-model="s.value" placeholder="值(可选)" style="width:110px" />
-                  <button class="btn btn-sm" @click.stop="editIdx=-1">✓</button>
-                </template>
+          <div v-for="(f, fi) in flows" :key="fi" class="flow-card">
+            <div class="flow-head">
+              <span class="flow-no">流程 {{ fi + 1 }}</span>
+              <input class="input flow-title" v-model="f.title" placeholder="流程标题，如：登录后跳转工作台" />
+              <button class="btn btn-sm btn-danger" @click="flows.splice(fi, 1)" title="删除流程">×</button>
+            </div>
+
+            <div v-for="(s, si) in f.steps" :key="si" class="step-row">
+              <span class="step-no">{{ si + 1 }}</span>
+              <select class="select act-sel" v-model="s.action">
+                <option v-for="(meta, key) in ACTIONS" :key="key" :value="key">{{ meta.label }}</option>
+              </select>
+              <input class="input target-in" v-if="needsTarget(s.action)" v-model="s.target" :placeholder="targetHint(s.action)" />
+              <input class="input value-in" v-if="needsValue(s.action)" v-model="s.value" :placeholder="valueHint(s.action)" />
+              <div class="step-ops">
+                <button class="icon-btn" @click="moveStep(f, si, -1)" :disabled="si === 0" title="上移">↑</button>
+                <button class="icon-btn" @click="moveStep(f, si, 1)" :disabled="si === f.steps.length - 1" title="下移">↓</button>
+                <button class="icon-btn danger" @click="f.steps.splice(si, 1)" title="删除步骤">×</button>
               </div>
             </div>
-            <div style="margin-top:12px;display:flex;gap:8px">
-              <button class="btn btn-sm" @click="addStep">＋ 添加步骤</button>
-              <button class="btn btn-sm" @click="saveSteps">💾 保存步骤</button>
-              <button class="btn btn-sm" @click="showJson=!showJson">{{ showJson ? '隐藏' : '查看' }} JSON</button>
+            <div v-if="!f.steps.length" class="empty" style="padding:14px">还没有步骤，点击下方添加</div>
+
+            <div style="margin-top:10px;display:flex;gap:8px">
+              <button class="btn btn-sm" @click="addStep(f)">＋ 添加步骤</button>
             </div>
-            <div v-if="showJson" class="field" style="margin-top:12px"><pre class="code">{{ jsonSteps }}</pre></div>
           </div>
-          <div v-else class="empty"><div class="big">🌐</div>请选择一个 UI 用例，或前往用例中心新建</div>
+
+          <div v-if="!flows.length" class="empty"><div class="big">🧩</div>点击右上角「新建流程」开始编排</div>
+
+          <div style="margin-top:14px;display:flex;gap:10px;align-items:center">
+            <button class="btn btn-primary" @click="generate" :disabled="generating || !flows.length">
+              {{ generating ? '生成中...' : '🤖 生成并下载' }}
+            </button>
+            <span class="muted" style="font-size:12.5px">共 {{ flows.length }} 个流程 / {{ totalSteps }} 个步骤，生成 pytest + Playwright 可运行项目（zip）</span>
+          </div>
         </div>
       </div>
     </div>
 
     <div class="col">
       <div class="panel">
-        <div class="panel-head"><h2>执行日志</h2><div v-if="lastResult.status" class="badge" :class="lastResult.status">{{ statusName(lastResult.status) }}</div></div>
+        <div class="panel-head"><h2>编排说明</h2></div>
         <div class="panel-body">
-          <div v-if="lastResult.error_msg" class="result-error">⚠️ {{ lastResult.error_msg }}</div>
-          <div v-if="lastResult.logs" class="field" style="margin-top:8px"><label>步骤日志</label><pre class="code">{{ lastResult.logs }}</pre></div>
-          <div v-if="lastResult.request_info?.screenshots?.length" class="field">
-            <label>截图记录（演示模式标记）</label>
-            <div v-for="s in lastResult.request_info.screenshots" :key="s.step" class="tag">步骤{{ s.step }}: {{ s.target }}</div>
+          <div class="tip-card">
+            <b>支持的动作</b>
+            <table class="mini-table">
+              <thead><tr><th>动作</th><th>填写说明</th></tr></thead>
+              <tbody>
+                <tr v-for="(meta, key) in ACTIONS" :key="key"><td><code>{{ meta.label }}</code></td><td>{{ meta.hint }}</td></tr>
+              </tbody>
+            </table>
           </div>
-          <div v-if="!lastResult.status" class="empty"><div class="big">▶️</div>运行用例后显示执行结果</div>
-          <div class="hint">💡 演示环境使用模拟执行引擎。生产环境可接入真实 Playwright 浏览器（见 README）。</div>
+          <div class="tip-card">
+            <b>目标定位写法</b>（点击 / 输入的 target）
+            <ul class="tips">
+              <li>CSS 选择器：<code>button.submit</code>、<code>input[type="password"]</code></li>
+              <li>XPath：<code>//button[@class='login']</code></li>
+              <li>按文本：<code>text=登 录</code>，或直接填页面上的文字如 <code>提交</code></li>
+            </ul>
+          </div>
+          <div class="tip-card">
+            <b>生成的项目结构</b>（严格沿用框架模板）
+            <pre class="tree" v-pre>config.py            # 目标URL / Basic认证 / headless 开关
+pytest.ini / main.py  # 框架原样（allure 报告入口）
+conftest.py           # 框架原样（接管 page/browser fixture）
+Tools/*               # 日志 / YAML 读取（框架原样）
+Pages/flow_N_page.py  # 每个流程一个 Page 类（元素定位+步骤方法）
+testcase/flow_Ncase/  # 测试用例（parametrize 数据驱动）
+testdata/flow_N.yaml  # 流程标题与可变值，改值无需改代码</pre>
+          </div>
+          <div class="tip-card">
+            <b>如何运行</b>
+            <pre class="tree">pip install -r requirements.txt
+playwright install chromium
+pytest testcase                # 有头执行
+UI_HEADLESS=true pytest        # 无头执行
+python main.py                 # 生成 allure 报告</pre>
+          </div>
         </div>
       </div>
     </div>
@@ -59,62 +89,125 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import { api, notify } from '../api'
+import { token } from '../auth'
+import { useRoute } from 'vue-router'
 
-const uiCases = ref([])
-const selectedId = ref(null)
-const steps = ref([])
-const editIdx = ref(-1)
-const showJson = ref(false)
-const running = ref(false)
-const lastResult = ref({})
-const actions = ['goto','click','fill','assert_visible','wait','screenshot','select','press']
-
-const jsonSteps = computed(() => JSON.stringify(steps.value, null, 2))
-
-onMounted(async () => {
-  uiCases.value = await api('/api/cases?case_type=ui')
-})
-function loadSteps() {
-  const c = uiCases.value.find(x => x.id === selectedId.value)
-  if (!c) return
-  try { steps.value = typeof c.steps === 'string' ? JSON.parse(c.steps||'[]') : (c.steps||[]) }
-  catch(e) { steps.value = [] }
-  lastResult.value = {}
-  editIdx.value = -1
+const ACTIONS = {
+  goto: { label: '打开网页', hint: 'value 填目标 URL' },
+  click: { label: '点击元素', hint: 'target 填选择器（CSS/XPath/text=）' },
+  input: { label: '输入内容', hint: 'target 填选择器，value 填输入值' },
+  assert_text: { label: '断言页面文本', hint: 'target 填期望出现的文本' },
+  assert_url_contains: { label: '断言地址包含', hint: 'value 填地址片段' },
+  assert_title: { label: '断言页面标题', hint: 'value 填标题片段' },
+  wait: { label: '等待', hint: 'value 填秒数' },
 }
-function addStep() { steps.value.push({ action: 'click', target: '', value: '' }); editIdx.value = steps.value.length-1 }
-async function saveSteps() {
-  if (!selectedId.value) return
-  const c = uiCases.value.find(x => x.id === selectedId.value)
-  await api(`/api/cases/${selectedId.value}`, { method: 'PUT', body: { steps: jsonSteps.value } })
-  c.steps = jsonSteps.value
-  notify('步骤已保存')
+
+const route = useRoute()
+const flows = ref([])
+const generating = ref(false)
+
+const totalSteps = computed(() => flows.value.reduce((n, f) => n + f.steps.length, 0))
+
+function blankStep() { return { action: 'goto', target: '', value: '' } }
+function addFlow() {
+  flows.value.push({ title: '', steps: [blankStep()] })
 }
-async function runCase() {
-  if (!selectedId.value) return
-  running.value = true
-  lastResult.value = {}
+function addStep(f) { f.steps.push({ action: 'click', target: '', value: '' }) }
+function moveStep(f, si, dir) {
+  const j = si + dir
+  if (j < 0 || j >= f.steps.length) return
+  const [s] = f.steps.splice(si, 1)
+  f.steps.splice(j, 0, s)
+}
+function needsTarget(a) { return ['click', 'input', 'assert_text'].includes(a) }
+function needsValue(a) { return ['goto', 'input', 'assert_url_contains', 'assert_title', 'wait'].includes(a) }
+function targetHint(a) {
+  return ({ click: '目标定位，如 button.submit 或 text=登录', input: '输入框定位，如 input[type="password"]', assert_text: '期望出现的文本' })[a] || ''
+}
+function valueHint(a) {
+  return ({ goto: 'https://example.com', input: '要输入的内容', assert_url_contains: '地址片段，如 dashboard', assert_title: '标题片段', wait: '秒数，如 2' })[a] || ''
+}
+
+function validate() {
+  for (let i = 0; i < flows.value.length; i++) {
+    const f = flows.value[i]
+    if (!f.title.trim()) { notify(`第 ${i + 1} 个流程缺少标题`, 'error'); return false }
+    if (!f.steps.length) { notify(`流程「${f.title}」没有步骤`, 'error'); return false }
+    for (let j = 0; j < f.steps.length; j++) {
+      const s = f.steps[j]
+      const t = (s.target || '').trim(), v = (s.value || '').trim()
+      if (s.action === 'goto' && !v) { notify(`流程${i + 1} 步骤${j + 1}：请填写 URL`, 'error'); return false }
+      if (s.action === 'click' && !t) { notify(`流程${i + 1} 步骤${j + 1}：请填写目标定位`, 'error'); return false }
+      if (s.action === 'input' && (!t || !v)) { notify(`流程${i + 1} 步骤${j + 1}：请填写定位和输入值`, 'error'); return false }
+      if (s.action === 'assert_text' && !t) { notify(`流程${i + 1} 步骤${j + 1}：请填写期望文本`, 'error'); return false }
+      if ((s.action === 'assert_url_contains' || s.action === 'assert_title') && !v) { notify(`流程${i + 1} 步骤${j + 1}：请填写期望值`, 'error'); return false }
+      if (s.action === 'wait' && (isNaN(Number(v)) || v === '')) { notify(`流程${i + 1} 步骤${j + 1}：等待秒数必须是数字`, 'error'); return false }
+    }
+  }
+  return true
+}
+
+async function generate() {
+  if (!validate()) return
+  generating.value = true
   try {
-    const c = uiCases.value.find(x => x.id === selectedId.value)
-    lastResult.value = await api('/api/runs', { method: 'POST', body: { case_ids: [selectedId.value], trigger: 'manual' } }).then(async run => {
-      const details = await api(`/api/runs/${run.id}/details`)
-      return details[0] || {}
+    const headers = { 'Content-Type': 'application/json' }
+    if (token.value) headers['Authorization'] = `Bearer ${token.value}`
+    const resp = await fetch('/api/ui/autogen', {
+      method: 'POST', headers,
+      body: JSON.stringify({ flows: flows.value }),
     })
-  } catch (e) { notify('执行失败: '+e.message, 'error') }
-  finally { running.value = false }
+    if (!resp.ok) { let m = resp.statusText; try { m = (await resp.json()).detail || m } catch (e) {} throw new Error(m) }
+    const blob = await resp.blob()
+    const cd = resp.headers.get('Content-Disposition') || ''
+    let name = 'ui_flow_autotest.zip'
+    const m = cd.match(/filename\*=UTF-8''([^;]+)/)
+    if (m) { try { name = decodeURIComponent(m[1]) } catch (e) {} }
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = name
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(a.href)
+    notify(`已生成 ${name}，解压后 pip install -r requirements.txt 即可运行`)
+  } catch (e) { notify('生成失败：' + e.message, 'error') }
+  finally { generating.value = false }
 }
-function statusName(s) { return ({passed:'通过',failed:'失败',error:'异常',skipped:'跳过'})[s]||s }
+
+// 初始：默认给一个空流程；支持 ?flow_title= 预填标题
+addFlow()
+const preTitle = route.query.flow_title
+if (preTitle && flows.value[0]) flows.value[0].title = String(preTitle)
 </script>
 
 <style scoped>
-.step-list { display: flex; flex-direction: column; gap: 6px; }
-.step { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; font-size: 13px; }
-.step:hover { border-color: var(--primary); }
-.step.editing { border-color: var(--primary); background: #fafbff; flex-wrap: wrap; }
-.step-no { width: 22px; height: 22px; border-radius: 50%; background: #eef1ff; color: var(--primary); display: grid; place-items: center; font-size: 11px; flex-shrink: 0; }
-.step-target { font-family: Consolas, monospace; font-size: 12px; }
-.result-error { background: #fdeaea; color: var(--danger); padding: 14px; border-radius: 8px; line-height: 1.6; }
-.hint { margin-top: 16px; padding: 12px; background: #eef1ff; color: var(--primary); border-radius: 8px; font-size: 12px; line-height: 1.6; }
+.flow-card { border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; background: #fafbff; }
+.flow-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.flow-no { font-size: 12.5px; font-weight: 600; color: var(--primary); background: #eef1ff; padding: 4px 10px; border-radius: 6px; flex-shrink: 0; }
+.flow-title { flex: 1; font-weight: 500; }
+.step-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; }
+.step-no { width: 24px; height: 24px; border-radius: 50%; background: #eef1ff; color: var(--primary); display: grid; place-items: center; font-size: 11.5px; flex-shrink: 0; }
+.act-sel { width: 128px; flex-shrink: 0; }
+.target-in { flex: 1.4; min-width: 0; }
+.value-in { flex: 1; min-width: 0; }
+.step-ops { display: flex; gap: 4px; flex-shrink: 0; }
+.icon-btn {
+  width: 26px; height: 26px; border: 1px solid var(--border); background: #fff; border-radius: 6px;
+  cursor: pointer; font-size: 13px; color: #57606f; display: grid; place-items: center; line-height: 1;
+  transition: all .15s;
+}
+.icon-btn:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+.icon-btn:disabled { opacity: .35; cursor: not-allowed; }
+.icon-btn.danger:hover { border-color: var(--danger); color: var(--danger); }
+.tip-card { background: #fafbfc; border: 1px solid var(--border); border-radius: 10px; padding: 13px 15px; margin-bottom: 12px; font-size: 12.5px; line-height: 1.7; }
+.tip-card b { display: block; margin-bottom: 7px; color: #0f1420; }
+.tips { margin: 0; padding-left: 18px; }
+.tip-card code { background: rgba(79,95,224,.08); color: var(--primary); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+.mini-table { width: 100%; border-collapse: collapse; }
+.mini-table th, .mini-table td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--border); font-weight: 400; }
+.mini-table th { font-size: 11.5px; color: #98a0b0; }
+.tree { background: #0f1420; color: #c9d4f2; padding: 12px 14px; border-radius: 8px; font-size: 11.5px; line-height: 1.75; overflow-x: auto; }
 </style>
