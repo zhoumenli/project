@@ -1,10 +1,10 @@
 <template>
   <div class="pager" v-if="total > 0">
     <span class="pg-total">共 {{ total }} 条 / {{ pages }} 页</span>
-    <button class="pg-btn" :disabled="modelValue <= 1" @click="go(modelValue - 1)">‹ 上一页</button>
-    <button v-for="p in pageList" :key="p.k" class="pg-num" :class="{ active: p.n === modelValue, gap: p.n === 0 }"
+    <button class="pg-btn" :disabled="page <= 1" @click="go(page - 1)">‹ 上一页</button>
+    <button v-for="p in pageList" :key="p.k" class="pg-num" :class="{ active: p.n === page, gap: p.n === 0 }"
       :disabled="p.n === 0" @click="go(p.n)" :title="p.n === 0 ? '' : `第 ${p.n} 页`">{{ p.n === 0 ? '…' : p.n }}</button>
-    <button class="pg-btn" :disabled="modelValue >= pages" @click="go(modelValue + 1)">下一页 ›</button>
+    <button class="pg-btn" :disabled="page >= pages" @click="go(page + 1)">下一页 ›</button>
     <select class="pg-size" :value="size" @change="$emit('update:size', Number($event.target.value))" title="每页条数">
       <option :value="30">30 条/页</option>
       <option :value="50">50 条/页</option>
@@ -25,9 +25,9 @@ const emit = defineEmits(['update:page', 'update:size'])
 
 const pages = computed(() => Math.max(1, Math.ceil(props.total / props.size)))
 
-// 页码窗口：首尾常驻，当前页 ±2，超出折叠为省略号
+// 页码窗口：首尾常驻，当前页 ±1，超出折叠为省略号
 const pageList = computed(() => {
-  const n = pages.value, cur = props.modelValue ?? props.page, out = []
+  const n = pages.value, cur = props.page, out = []
   const push = v => out.push({ n: v, k: 'p' + v })
   if (n <= 8) { for (let i = 1; i <= n; i++) push(i); return out }
   push(1)
@@ -40,7 +40,7 @@ const pageList = computed(() => {
 })
 
 function go(p) {
-  if (p < 1 || p > pages.value || p === (props.modelValue ?? props.page)) return
+  if (p < 1 || p > pages.value || p === props.page) return
   emit('update:page', p)
 }
 </script>
