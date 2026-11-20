@@ -1,5 +1,6 @@
 """FastAPI application for the test efficiency platform."""
 import os
+import json
 from datetime import datetime
 from typing import Optional
 
@@ -20,6 +21,7 @@ from . import locator_extractor
 from . import browser_session
 from . import exporter
 from . import coverage as coverage_engine
+from . import api_autogen
 from . import interactive_session
 from . import auth
 
@@ -348,6 +350,65 @@ def coverage_analyze(payload: CoverageAnalyze, db: Session = Depends(get_db)):
             obj = next((c for c in case_dicts if c["id"] == match.get("id")), None)
             match["folder"] = folder_names.get(obj["folder_id"], "") if obj else ""
     return result
+
+
+# ============================================================
+# API automation project generation
+# ============================================================
+class AutoGenRequest(schemas.BaseModel):
+    project_id: int
+    folder_id: Optional[int] = None
+    keyword: Optional[str] = None
+    case_ids: Optional[list[int]] = None
+    base_url: str = "http://127.0.0.1:9001"
+
+
+@app.post("/api/cases/autogen")
+def autogen_api_project(payload: AutoGenRequest, db: Session = Depends(get_db)):
+    """按接口自动化框架模板，把选中的接口用例生成为可运行的 pytest 项目 (zip)。"""
+    q = db.query(models.Case).filter(models.Case.case_type == "api")
+    if payload.case_ids:
+        q = q.filter(models.Case.id.in_(payload.case_ids))
+    else:
+        if payload.folder_id:
+            q = q.filter(models.Case.folder_id == payload.folder_id)
+        elif payload.project_id:
+            flist = db.query(models.Folder).filter(models.Folder.project_id == payload.project_id).all()
+            q = q.filter(models.Case.folder_id.in_([f.id for f in flist]))
+        if payload.keyword:
+            q = q.filter(models.Case.title.contains(payload.keyword))
+    cases = q.order_by(models.Case.id.desc()).all()
+    if not cases:
+        raise HTTPException(400, "没有可生成的接口用例")
+
+    flist = db.query(models.Folder).filter(models.Folder.project_id == payload.project_id).all()
+    folder_names = {f.id: f.name for f in flist}
+    p = db.query(models.Project).filter(models.Project.id == payload.project_id).first()
+    project_name = p.name if p else "接口自动化"
+
+    case_dicts = [{
+        "id": c.id, "title": c.title, "kw": folder_names.get(c.folder_id, "未分组"),
+        "method": (c.method or "GET").upper(), "path": c.url or "",
+        "headers": c.headers or {},
+        "json": c.body if c.body else None,  # 请求体按 JSON 处理（生成器会校验）
+        "asserts": c.assertions or [],
+        "extract": c.extractors or [],
+    } for c in cases]
+    # body 非 JSON 时降级为纯文本
+    for d in case_dicts:
+        if d["json"] is not None:
+            try:
+                d["json"] = json.loads(d["json"]) if isinstance(d["json"], str) else d["json"]
+            except Exception:
+                d["body"] = d.pop("json")
+
+    try:
+        data, top = api_autogen.generate_project(case_dicts, payload.base_url, project_name)
+    except FileNotFoundError as e:
+        raise HTTPException(500, f"模板文件缺失: {e}")
+    from urllib.parse import quote
+    headers = {"Content-Disposition": f"attachment; filename*=UTF-8''{quote(top + '.zip')}"}
+    return Response(content=data, media_type="application/zip", headers=headers)
 
 
 # ============================================================

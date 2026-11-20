@@ -36,6 +36,7 @@
             <option value="csv">CSV (.csv)</option>
           </select>
           <button class="btn" @click="exportCases" :disabled="exporting" title="按当前筛选条件导出用例">{{ exporting ? '导出中...' : '⬇ 导出' }}</button>
+          <button class="btn" @click="openAutoGen" title="按接口自动化框架模板生成可运行的 pytest 项目">🤖 自动化</button>
           <button class="btn" @click="openSuiteDialog">📑 测试集</button>
           <button class="btn btn-primary" @click="openCaseDialog()">＋ 新建用例</button>
         </div>
@@ -120,6 +121,28 @@
     </div>
   </div>
 
+  <!-- autogen dialog -->
+  <div v-if="autoGenDialog" class="modal-mask" @click.self="autoGenDialog=false">
+    <div class="modal">
+      <div class="modal-head">生成接口自动化项目<button class="close-x" @click="autoGenDialog=false">×</button></div>
+      <div class="modal-body">
+        <div class="field"><label>生成范围</label>
+          <div class="muted" style="font-size:13px">{{ autoGenScope }}</div>
+        </div>
+        <div class="field"><label>接口基础地址（BASE_URL）</label>
+          <input class="input" v-model="autoGenBase" placeholder="http://127.0.0.1:9001" />
+        </div>
+        <div class="muted" style="font-size:12px">按接口自动化框架模板（pytest + requests + allure 数据驱动）生成完整可运行项目：
+          config.py / caseData/data.yaml / testcase/&lt;模块&gt;/test_xxx.py，断言与变量提取自动转换，zip 下载解压后
+          <code>pip install -r requirements.txt</code> 即可 <code>pytest</code> 运行。仅生成接口类型用例。</div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" @click="autoGenDialog=false">取消</button>
+        <button class="btn btn-primary" @click="doAutoGen" :disabled="autoGenLoading">{{ autoGenLoading ? '生成中...' : '🤖 生成并下载' }}</button>
+      </div>
+    </div>
+  </div>
+
   <!-- suite dialog -->
   <div v-if="suiteDialog" class="modal-mask" @click.self="suiteDialog=false">
     <div class="modal">
@@ -155,6 +178,15 @@ const keyword = ref('')
 const typeFilter = ref('')
 const exportFormat = ref('xlsx')
 const exporting = ref(false)
+const autoGenDialog = ref(false)
+const autoGenBase = ref('http://127.0.0.1:9001')
+const autoGenLoading = ref(false)
+
+const autoGenScope = computed(() => {
+  const apiCount = cases.value.filter(c => c.case_type === 'api').length
+  const scope = selectedFolder.value ? '当前目录' : '当前项目全部目录'
+  return `${scope}下共 ${cases.value.length} 条用例，其中接口用例 ${apiCount} 条将参与生成`
+})
 const caseDialog = ref(false)
 const suiteDialog = ref(false)
 const editing = ref(null)
@@ -222,6 +254,43 @@ async function exportCases() {
     notify(`已导出 ${name}`)
   } catch (e) { notify('导出失败：' + e.message, 'error') }
   finally { exporting.value = false }
+}
+
+function openAutoGen() {
+  if (!cases.value.some(c => c.case_type === 'api')) { notify('当前范围内没有接口用例，无法生成自动化项目', 'error'); return }
+  autoGenDialog.value = true
+}
+
+async function doAutoGen() {
+  if (!currentProject.value) return
+  autoGenLoading.value = true
+  try {
+    const body = {
+      project_id: currentProject.value.id,
+      base_url: autoGenBase.value.trim() || 'http://127.0.0.1:9001',
+    }
+    if (selectedFolder.value) body.folder_id = selectedFolder.value
+    if (keyword.value) body.keyword = keyword.value
+    const headers = { 'Content-Type': 'application/json' }
+    if (token.value) headers['Authorization'] = `Bearer ${token.value}`
+    const resp = await fetch('/api/cases/autogen', { method: 'POST', headers, body: JSON.stringify(body) })
+    if (!resp.ok) { let m = resp.statusText; try { m = (await resp.json()).detail || m } catch (e) {} throw new Error(m) }
+    const blob = await resp.blob()
+    const cd = resp.headers.get('Content-Disposition') || ''
+    let name = '接口自动化项目.zip'
+    const m = cd.match(/filename\*=UTF-8''([^;]+)/)
+    if (m) { try { name = decodeURIComponent(m[1]) } catch (e) {} }
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = name
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(a.href)
+    autoGenDialog.value = false
+    notify(`已生成 ${name}，解压后 pip install -r requirements.txt 即可运行`)
+  } catch (e) { notify('生成失败：' + e.message, 'error') }
+  finally { autoGenLoading.value = false }
 }
 async function loadSuites() {
   if (!currentProject.value) return
