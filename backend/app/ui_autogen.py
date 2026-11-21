@@ -170,7 +170,7 @@ __METHODS__
     return out
 
 
-def _gen_test_py(flow, slug, cls) -> str:
+def _gen_test_py(flow, slug, cls, order=1) -> str:
     """生成 testcase/<slug>case/test_<slug>.py：fresh_page fixture + 显式步骤调用。"""
     body = []
     for i, s in enumerate(flow["steps"], start=1):
@@ -196,6 +196,7 @@ def _gen_test_py(flow, slug, cls) -> str:
 
 每条流程用 fresh_page 独占一个 context，互不影响；
 可变值集中在 testdata/__SLUG___data.yaml，改数据不用改代码。
+显式执行顺序：第 __ORDER__ 条（pytest-order）。
 """
 import allure
 import pytest
@@ -218,13 +219,15 @@ STORY = "__TITLE__"
 @allure.feature("__TITLE__")
 @allure.story(STORY)
 @allure.title("{data[title]}")
+@pytest.mark.order(__ORDER__)
 @pytest.mark.parametrize("data", datas)
 def test___SLUG__(data, fresh_page: Page) -> None:
     logger.info("开始执行流程编排: {}".format(data["title"]))
     flow_page = __CLASS__(fresh_page)
 __BODY__
 '''
-    out = tpl.replace("__TITLE__", _safe(flow["title"].strip())).replace("__SLUG__", slug).replace("__CLASS__", cls)
+    out = (tpl.replace("__TITLE__", _safe(flow["title"].strip())).replace("__SLUG__", slug)
+              .replace("__CLASS__", cls).replace("__ORDER__", str(order)))
     return out.replace("__BODY__", "\n".join(body))
 
 
@@ -343,14 +346,31 @@ def _gen_config_py(flows) -> str:
 REQS = '''playwright>=1.40
 pytest>=7.4
 pytest-playwright>=0.4
+pytest-order>=1.2          # 自定义执行顺序 @pytest.mark.order
+pytest-rerunfailures>=14    # 失败自动重试 --reruns
 allure-pytest>=2.13
 PyYAML>=6.0
+'''
+
+# 覆盖模板的 pytest.ini：加入失败重试配置（顺序由 @pytest.mark.order 控制）
+PYTEST_INI_WITH_RETRY = '''[pytest]
+addopts = -v -s --reruns=2 --reruns-delay=1
+testpaths = testcase
+python_files = test*.py
+python_classes = Test*
+python_functions = test*
 '''
 
 README_TMPL = '''# UI 自动化测试项目（由测试提效平台生成）
 
 由流程编排自动生成的 pytest + Playwright 项目，沿用框架模板结构
-（Page Object + allure 步骤 + YAML 数据驱动 + 失败截图/追踪/全程录屏）。
+（Page Object + allure 步骤 + YAML 数据驱动）。
+已统一包含：自定义执行顺序、失败重试、失败截图、录屏。
+
+- **执行顺序**：用例带 `@pytest.mark.order(N)`，N 即页面上流程的排列顺序。
+- **失败重试**：`pytest.ini` 里 `--reruns=2`（改数字即可调整）。
+- **失败截图 + 追踪**：失败时自动截图和 Playwright trace 附到 Allure。
+- **录屏**：框架 conftest 全程录制 webm 附到报告；`UI_VIDEO=false` 关闭。
 
 ## 运行
 
@@ -432,10 +452,11 @@ def generate_ui_project(flows: list, framework: str = FRAMEWORK_PLAYWRIGHT) -> t
         zf.writestr(f"{root}/config.py", _gen_config_py(flows))
         zf.writestr(f"{root}/requirements.txt", REQS)
         zf.writestr(f"{root}/README.md", README_TMPL)
+        zf.writestr(f"{root}/pytest.ini", PYTEST_INI_WITH_RETRY)  # 覆盖模板 ini，加入失败重试
         for idx, flow in enumerate(flows, start=1):
             slug, cls = f"flow_{idx}", f"Flow{idx}Page"
             zf.writestr(f"{root}/Pages/{slug}_page.py", _gen_page_py(flow, slug, cls))
-            zf.writestr(f"{root}/testcase/{slug}case/test_{slug}.py", _gen_test_py(flow, slug, cls))
+            zf.writestr(f"{root}/testcase/{slug}case/test_{slug}.py", _gen_test_py(flow, slug, cls, idx))
             zf.writestr(f"{root}/testdata/{slug}_data.yaml", _gen_data_yaml(flow, slug))
     import time
     stamp = time.strftime("%Y%m%d_%H%M%S")

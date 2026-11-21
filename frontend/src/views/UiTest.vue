@@ -19,7 +19,11 @@
             <div class="flow-head">
               <span class="flow-no">流程 {{ fi + 1 }}</span>
               <input class="input flow-title" v-model="f.title" placeholder="流程标题，如：登录后跳转工作台" />
-              <button class="btn btn-sm btn-danger" @click="flows.splice(fi, 1)" title="删除流程">×</button>
+              <div class="flow-ops">
+                <button class="icon-btn" @click="moveFlow(fi, -1)" :disabled="fi === 0" title="上移（提前执行）">↑</button>
+                <button class="icon-btn" @click="moveFlow(fi, 1)" :disabled="fi === flows.length - 1" title="下移（延后执行）">↓</button>
+                <button class="icon-btn danger" @click="flows.splice(fi, 1)" title="删除流程">×</button>
+              </div>
             </div>
 
             <div v-for="(s, si) in f.steps" :key="si" class="step-row">
@@ -73,6 +77,15 @@
               <li>CSS 选择器：<code>button.submit</code>、<code>input[type="password"]</code></li>
               <li>XPath：<code>//button[@class='login']</code></li>
               <li>按文本：<code>text=登 录</code>，或直接填页面上的文字如 <code>提交</code></li>
+            </ul>
+          </div>
+          <div class="tip-card">
+            <b>统一能力（三个框架都包含）</b>
+            <ul class="tips">
+              <li><b>执行顺序</b>：用流程卡上的 ↑↓ 排序，生成时按此顺序标记</li>
+              <li><b>失败重试</b>：默认失败自动重跑 2 次，可改配置</li>
+              <li><b>失败截图</b>：失败时自动截图附到报告</li>
+              <li><b>录屏</b>：全程录制（Playwright webm / Selenium·Robot GIF）</li>
             </ul>
           </div>
           <div class="tip-card">
@@ -162,6 +175,12 @@ function blankStep() { return { action: 'goto', target: '', value: '' } }
 function addFlow() {
   flows.value.push({ title: '', steps: [blankStep()] })
 }
+function moveFlow(fi, dir) {
+  const j = fi + dir
+  if (j < 0 || j >= flows.value.length) return
+  const [f] = flows.value.splice(fi, 1)
+  flows.value.splice(j, 0, f)
+}
 function addStep(f) { f.steps.push({ action: 'click', target: '', value: '' }) }
 function moveStep(f, si, dir) {
   const j = si + dir
@@ -248,6 +267,7 @@ if (preTitle && flows.value[0]) flows.value[0].title = String(preTitle)
 .flow-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .flow-no { font-size: 12.5px; font-weight: 600; color: var(--primary); background: #eef1ff; padding: 4px 10px; border-radius: 6px; flex-shrink: 0; }
 .flow-title { flex: 1; font-weight: 500; }
+.flow-ops { display: flex; gap: 4px; flex-shrink: 0; }
 .step-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; }
 .step-no { width: 24px; height: 24px; border-radius: 50%; background: #eef1ff; color: var(--primary); display: grid; place-items: center; font-size: 11.5px; flex-shrink: 0; }
 .act-sel { width: 128px; flex-shrink: 0; }
