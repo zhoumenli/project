@@ -448,14 +448,15 @@ class UiFlow(schemas.BaseModel):
 
 class UiAutoGenRequest(schemas.BaseModel):
     flows: list[UiFlow]
+    framework: str = ui_autogen_engine.FRAMEWORK_PLAYWRIGHT
 
 
 @app.post("/api/ui/autogen")
 def ui_autogen_project(payload: UiAutoGenRequest):
-    """按步骤编排 + UI 框架模板，生成可运行的 pytest+Playwright 项目 (zip)。"""
+    """按步骤编排 + 选定框架（Playwright/Selenium/RobotFramework），生成可运行项目 (zip)。"""
     flows = [{"title": f.title, "steps": [s.model_dump() for s in f.steps]} for f in payload.flows]
     try:
-        data, filename = ui_autogen_engine.generate_ui_project(flows)
+        data, filename = ui_autogen_engine.generate_ui_project(flows, payload.framework)
     except (ValueError, FileNotFoundError) as e:
         raise HTTPException(400, str(e))
     from urllib.parse import quote

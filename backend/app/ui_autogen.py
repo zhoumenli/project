@@ -396,8 +396,24 @@ testdata/flow_N_data.yaml # 流程标题与可变值（改值无需改代码）
 '''
 
 
-def generate_ui_project(flows: list) -> tuple[bytes, str]:
-    """按流程编排生成完整项目 zip。返回 (zip_bytes, filename)。"""
+FRAMEWORK_PLAYWRIGHT = "playwright_pytest"
+FRAMEWORK_SELENIUM = "selenium_pytest"
+FRAMEWORK_ROBOT = "robot_framework"
+SUPPORTED_FRAMEWORKS = (FRAMEWORK_PLAYWRIGHT, FRAMEWORK_SELENIUM, FRAMEWORK_ROBOT)
+
+
+def generate_ui_project(flows: list, framework: str = FRAMEWORK_PLAYWRIGHT) -> tuple[bytes, str]:
+    """按流程编排生成完整项目 zip。framework 决定目标语言/框架。返回 (zip_bytes, filename)。"""
+    if framework not in SUPPORTED_FRAMEWORKS:
+        raise ValueError(f"不支持的自动化框架: {framework}，可选: {', '.join(SUPPORTED_FRAMEWORKS)}")
+    if framework == FRAMEWORK_SELENIUM:
+        from . import ui_gen_selenium
+        return ui_gen_selenium.generate_selenium(flows)
+    if framework == FRAMEWORK_ROBOT:
+        from . import ui_gen_robot
+        return ui_gen_robot.generate_robot(flows)
+
+    # 以下为默认的 Playwright + pytest（沿用用户框架模板）
     if not flows:
         raise ValueError("至少需要一个流程编排")
     for idx, f in enumerate(flows):

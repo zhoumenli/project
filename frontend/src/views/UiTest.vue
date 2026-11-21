@@ -4,6 +4,17 @@
       <div class="panel">
         <div class="panel-head"><h2>🌐 UI 自动化 · 流程编排</h2><button class="btn btn-sm" @click="addFlow">＋ 新建流程</button></div>
         <div class="panel-body">
+          <div class="framework-pick">
+            <span class="pick-label">目标框架</span>
+            <div class="pick-options">
+              <button v-for="opt in FRAMEWORKS" :key="opt.value" class="pick-chip"
+                :class="{ active: framework === opt.value }" @click="framework = opt.value">
+                <span class="pick-icon">{{ opt.icon }}</span>
+                <span>{{ opt.label }}</span>
+              </button>
+            </div>
+          </div>
+
           <div v-for="(f, fi) in flows" :key="fi" class="flow-card">
             <div class="flow-head">
               <span class="flow-no">流程 {{ fi + 1 }}</span>
@@ -37,7 +48,7 @@
             <button class="btn btn-primary" @click="generate" :disabled="generating || !flows.length">
               {{ generating ? '生成中...' : '🤖 生成并下载' }}
             </button>
-            <span class="muted" style="font-size:12.5px">共 {{ flows.length }} 个流程 / {{ totalSteps }} 个步骤，生成 pytest + Playwright 可运行项目（zip）</span>
+            <span class="muted" style="font-size:12.5px">共 {{ flows.length }} 个流程 / {{ totalSteps }} 个步骤，生成 {{ currentFramework.label }} 可运行项目（zip）</span>
           </div>
         </div>
       </div>
@@ -65,7 +76,11 @@
             </ul>
           </div>
           <div class="tip-card">
-            <b>生成的项目结构</b>（严格沿用框架模板）
+            <b>当前框架：{{ currentFramework.label }}</b>
+            <div style="color:var(--text-secondary,#6b7280);margin-top:4px">{{ currentFramework.desc }}</div>
+          </div>
+          <div class="tip-card" v-if="framework === 'playwright_pytest'">
+            <b>生成的项目结构</b>（沿用你的框架模板）
             <pre class="tree" v-pre>config.py            # 目标URL / Basic认证 / headless 开关
 pytest.ini / main.py  # 框架原样（allure 报告入口）
 conftest.py           # 框架原样（接管 page/browser fixture）
@@ -74,13 +89,26 @@ Pages/flow_N_page.py  # 每个流程一个 Page 类（元素定位+步骤方法�
 testcase/flow_Ncase/  # 测试用例（parametrize 数据驱动）
 testdata/flow_N.yaml  # 流程标题与可变值，改值无需改代码</pre>
           </div>
+          <div class="tip-card" v-else-if="framework === 'selenium_pytest'">
+            <b>生成的项目结构</b>（标准 Selenium 4）
+            <pre class="tree" v-pre>config.py            # 目标URL / headless / 等待配置
+conftest.py           # driver fixture + 失败截图 + Allure
+pytest.ini / main.py  # pytest 配置 + allure 报告入口
+Pages/base_page.py    # 通用操作与断言封装
+Pages/flow_N_page.py  # 每个流程一个 Page 类
+testcase/flow_Ncase/  # 测试用例（parametrize 数据驱动）
+testdata/flow_N.yaml  # 可变值，改值无需改代码</pre>
+          </div>
+          <div class="tip-card" v-else>
+            <b>生成的项目结构</b>（Robot Framework）
+            <pre class="tree" v-pre>common.resource       # SeleniumLibrary + 浏览器开关关键字
+testcases/flow_N.robot        # 每个流程一个测试套件
+testcases/flow_N_data.resource # 该流程的可变值
+requirements.txt      # robotframework + SeleniumLibrary</pre>
+          </div>
           <div class="tip-card">
             <b>如何运行</b>
-            <pre class="tree">pip install -r requirements.txt
-playwright install chromium
-pytest testcase                # 有头执行
-UI_HEADLESS=true pytest        # 无头执行
-python main.py                 # 生成 allure 报告</pre>
+            <pre class="tree">{{ currentFramework.run }}</pre>
           </div>
         </div>
       </div>
@@ -104,9 +132,29 @@ const ACTIONS = {
   wait: { label: '等待', hint: 'value 填秒数' },
 }
 
+const FRAMEWORKS = [
+  {
+    value: 'playwright_pytest', label: 'Python + Playwright', icon: '⚡',
+    desc: '沿用你的框架模板，Page Object + allure，已稳定使用。',
+    run: 'pip install -r requirements.txt\nplaywright install chromium\npytest testcase                # 有头执行\nUI_HEADLESS=true pytest        # 无头执行\npython main.py                 # allure 报告',
+  },
+  {
+    value: 'selenium_pytest', label: 'Python + Selenium', icon: '🐍',
+    desc: '标准 Selenium 4 + pytest，Selenium Manager 自动匹配驱动。',
+    run: 'pip install -r requirements.txt\npytest testcase                    # 默认无头\nUI_HEADLESS=false pytest testcase  # 有头观察\nCHROMEDRIVER_PATH=/path/to/chromedriver pytest  # 离线指定驱动',
+  },
+  {
+    value: 'robot_framework', label: 'Robot Framework', icon: '🤖',
+    desc: '关键字驱动，步骤直接映射 SeleniumLibrary 关键字。',
+    run: 'pip install -r requirements.txt\nrobot testcases/                              # 默认无头\nrobot --variable HEADLESS:false testcases/    # 有头观察',
+  },
+]
+
 const route = useRoute()
 const flows = ref([])
 const generating = ref(false)
+const framework = ref(FRAMEWORKS[0].value)
+const currentFramework = computed(() => FRAMEWORKS.find(f => f.value === framework.value) || FRAMEWORKS[0])
 
 const totalSteps = computed(() => flows.value.reduce((n, f) => n + f.steps.length, 0))
 
@@ -157,7 +205,7 @@ async function generate() {
     if (token.value) headers['Authorization'] = `Bearer ${token.value}`
     const resp = await fetch('/api/ui/autogen', {
       method: 'POST', headers,
-      body: JSON.stringify({ flows: flows.value }),
+      body: JSON.stringify({ flows: flows.value, framework: framework.value }),
     })
     if (!resp.ok) { let m = resp.statusText; try { m = (await resp.json()).detail || m } catch (e) {} throw new Error(m) }
     const blob = await resp.blob()
@@ -184,6 +232,18 @@ if (preTitle && flows.value[0]) flows.value[0].title = String(preTitle)
 </script>
 
 <style scoped>
+.framework-pick { margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+.pick-label { display: block; font-size: 12.5px; font-weight: 500; color: var(--text-secondary, #57606f); margin-bottom: 9px; }
+.pick-options { display: flex; gap: 10px; flex-wrap: wrap; }
+.pick-chip {
+  display: flex; align-items: center; gap: 8px; padding: 9px 14px;
+  border: 1.5px solid var(--border); border-radius: 10px; background: #fff;
+  font-size: 13px; color: var(--text-primary, #0f1420); cursor: pointer;
+  transition: all .18s;
+}
+.pick-chip:hover { border-color: var(--primary); }
+.pick-chip.active { border-color: var(--primary); background: var(--primary-light, #eef1ff); box-shadow: 0 0 0 3px rgba(91,107,245,.1); }
+.pick-icon { font-size: 15px; }
 .flow-card { border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; background: #fafbff; }
 .flow-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .flow-no { font-size: 12.5px; font-weight: 600; color: var(--primary); background: #eef1ff; padding: 4px 10px; border-radius: 6px; flex-shrink: 0; }
