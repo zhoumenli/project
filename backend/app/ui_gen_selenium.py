@@ -398,10 +398,26 @@ if __name__ == "__main__":
 
 READ_DATA = '''import yaml
 
+from Tools.my_logger import logger
+
 
 def read(file, kw=None):
-    with open(file, "r", encoding="utf-8") as f:
-        datas = yaml.safe_load(f)
+    """读取 YAML 测试数据（对应框架 Tools/read_data.py）。
+
+    兼容两种结构：单条数据 dict → 包装成 list；多条数据直接返回 list。
+    kw 用于在多条数据里按关键字段过滤。
+    """
+    logger.info("读取测试数据文件: {}".format(file))
+    try:
+        with open(file, "r", encoding="utf-8") as f:
+            datas = yaml.safe_load(f)
+    except Exception as e:
+        logger.error("文件读取失败: {}".format(e))
+        raise RuntimeError("文件{}读取失败".format(file))
+    if datas is None:
+        return []
+    if isinstance(datas, dict):
+        datas = [datas]
     if kw:
         return [d for d in datas if d.get("kw") == kw]
     return datas
