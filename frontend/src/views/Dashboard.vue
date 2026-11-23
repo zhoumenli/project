@@ -64,11 +64,11 @@ const trend = ref([])
 onMounted(async () => {
   const d = await api('/api/dashboard')
   stats.value = [
-    { label: '项目数', value: d.project_count, icon: '📁', bg: '#e8f0ff', color: '#4f6ef7' },
-    { label: '用例总数', value: d.case_count, icon: '📋', bg: '#e4f7ee', color: '#1fa971' },
-    { label: '接口用例', value: d.api_count, icon: '🔌', bg: '#fff4e2', color: '#e8a13a' },
-    { label: 'UI 用例', value: d.ui_count, icon: '🌐', bg: '#f0eaff', color: '#8b5cf6' },
-    { label: '执行次数', value: d.run_count, icon: '▶️', bg: '#fdeaea', color: '#e8534e' },
+    { label: '项目数', value: d.project_count, icon: '📁', bg: 'var(--primary-light)', color: '#aab2ff' },
+    { label: '用例总数', value: d.case_count, icon: '📋', bg: 'rgba(39,166,68,.14)', color: '#5fd18a' },
+    { label: '接口用例', value: d.api_count, icon: '🔌', bg: 'rgba(226,163,60,.14)', color: '#e8bd6b' },
+    { label: 'UI 用例', value: d.ui_count, icon: '🌐', bg: 'var(--primary-light)', color: '#aab2ff' },
+    { label: '执行次数', value: d.run_count, icon: '▶️', bg: 'rgba(235,87,87,.14)', color: '#f0858f' },
   ]
   trend.value = d.trend
 })
@@ -81,22 +81,23 @@ function barW(n) {
 <style scoped>
 .welcome-banner {
   position: relative; overflow: hidden;
-  background: linear-gradient(120deg, #4f5fe8 0%, #7c4eea 55%, #a06bff 100%);
-  border-radius: 18px; padding: 26px 30px; margin-bottom: 22px;
-  color: #fff; box-shadow: 0 10px 32px rgba(91, 107, 245, .3);
+  background: var(--panel); border: 1px solid var(--border);
+  border-left: 3px solid var(--primary);
+  border-radius: 12px; padding: 26px 30px; margin-bottom: 22px;
+  color: var(--text);
 }
 .welcome-text { position: relative; z-index: 2; }
 .welcome-eyebrow {
-  font-size: 11px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase;
-  opacity: .85; margin-bottom: 8px;
+  font-size: 11px; font-weight: 500; letter-spacing: .4px; text-transform: uppercase;
+  color: var(--primary-hover); margin-bottom: 8px;
 }
-.welcome-banner h2 { font-size: 23px; font-weight: 800; letter-spacing: -.4px; margin-bottom: 6px; }
-.welcome-banner p { font-size: 13px; opacity: .88; }
+.welcome-banner h2 { font-size: 24px; font-weight: 600; letter-spacing: -.6px; margin-bottom: 6px; }
+.welcome-banner p { font-size: 13px; color: var(--muted); }
 .welcome-art { position: absolute; right: 30px; top: 50%; transform: translateY(-50%); width: 150px; height: 110px; }
-.orb { position: absolute; border-radius: 50%; filter: blur(1px); }
-.orb-1 { width: 90px; height: 90px; right: 0; top: 0; background: radial-gradient(circle, rgba(255,255,255,.3), transparent 70%); }
-.orb-2 { width: 70px; height: 70px; right: 60px; bottom: 0; background: radial-gradient(circle, rgba(255,255,255,.22), transparent 70%); }
-.art-emoji { position: absolute; right: 22px; top: 50%; transform: translateY(-50%); font-size: 46px; animation: floaty 3.5s ease-in-out infinite; }
+.orb { position: absolute; border-radius: 50%; }
+.orb-1 { width: 90px; height: 90px; right: 0; top: 0; background: radial-gradient(circle, rgba(94,106,210,.16), transparent 70%); }
+.orb-2 { width: 70px; height: 70px; right: 60px; bottom: 0; background: radial-gradient(circle, rgba(122,127,173,.12), transparent 70%); }
+.art-emoji { position: absolute; right: 22px; top: 50%; transform: translateY(-50%); font-size: 46px; opacity: .85; animation: floaty 3.5s ease-in-out infinite; }
 
 .stat-card { animation: riseIn .45s ease both; }
 
@@ -104,10 +105,10 @@ function barW(n) {
 .chart-row:hover { transform: translateX(3px); }
 .chart-label {
   width: 38px; color: var(--muted); font-size: 11.5px; font-weight: 700;
-  background: #f4f6fc; border-radius: 6px; padding: 3px 0; text-align: center;
+  background: var(--panel-2); border-radius: 6px; padding: 3px 0; text-align: center;
 }
 .chart-bars {
-  flex: 1; display: flex; height: 16px; background: #f0f2f7; border-radius: 6px;
+  flex: 1; display: flex; height: 16px; background: var(--panel-2); border-radius: 6px;
   overflow: hidden; box-shadow: inset 0 1px 3px rgba(0,0,0,.05);
 }
 .bar { height: 100%; transition: width .5s cubic-bezier(.4,0,.2,1); }

@@ -152,7 +152,7 @@ async function logout() {
 .user-menu { position: relative; }
 .user-btn {
   display: flex; align-items: center; gap: 9px; border: 1.5px solid var(--border);
-  background: #fff; border-radius: 24px; padding: 4px 12px 4px 4px;
+  background: var(--panel); border-radius: 24px; padding: 4px 12px 4px 4px;
   font-size: 13px; font-weight: 600; cursor: pointer;
   transition: all .22s cubic-bezier(.4,0,.2,1);
 }
@@ -167,7 +167,7 @@ async function logout() {
 .caret { color: var(--muted); font-size: 10px; transition: transform .2s; }
 .user-btn:hover .caret { transform: translateY(2px); }
 .user-dropdown {
-  position: absolute; right: 0; top: 46px; width: 190px; background: #fff;
+  position: absolute; right: 0; top: 46px; width: 190px; background: var(--panel);
   border: 1px solid var(--border); border-radius: 13px;
   box-shadow: 0 12px 40px rgba(20, 24, 50, .18); z-index: 50; overflow: hidden;
   animation: popIn .2s cubic-bezier(.34, 1.56, .64, 1);
@@ -179,11 +179,11 @@ async function logout() {
   border-bottom: 1px solid var(--border); background: #fafbfd;
 }
 .user-dropdown button {
-  display: block; width: 100%; text-align: left; border: none; background: #fff;
+  display: block; width: 100%; text-align: left; border: none; background: var(--panel);
   padding: 12px 15px; font-size: 13px; font-weight: 600; color: var(--danger);
   transition: background .18s, padding-left .18s;
 }
-.user-dropdown button:hover { background: #fdeaee; padding-left: 19px; }
+.user-dropdown button:hover { background: rgba(235,87,87,.15); padding-left: 19px; }
 
 @media (max-width: 900px) { .greeting { display: none; } }
 </style>

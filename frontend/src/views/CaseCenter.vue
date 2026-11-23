@@ -398,7 +398,7 @@ function fmtTime(t) { return t ? t.replace('T',' ').slice(0,16) : '-' }
 .case-scroll { max-height: calc(100vh - 240px); overflow: auto; }
 .case-scroll table :deep(thead th) {
   position: sticky; top: 0; z-index: 2;
-  background: #f8f9fd;
+  background: var(--panel-2);
   box-shadow: 0 1px 0 var(--border);
 }
 .batch-bar { display: flex; align-items: center; gap: 10px; margin: 0 18px 12px; padding: 10px 14px; background: var(--primary-light, #eef0ff); border: 1px solid var(--border); border-radius: 10px; animation: fadeIn .2s ease; }
