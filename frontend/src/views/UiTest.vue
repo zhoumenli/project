@@ -49,7 +49,7 @@
           <div v-if="!flows.length" class="empty"><div class="big">🧩</div>点击右上角「新建流程」开始编排</div>
 
           <div style="margin-top:14px;display:flex;gap:10px;align-items:center">
-            <button class="btn btn-primary" @click="generate" :disabled="generating || !flows.length">
+            <button class="btn btn-primary gen-btn" @click="generate" :disabled="generating || !flows.length">
               {{ generating ? '生成中...' : '🤖 生成并下载' }}
             </button>
             <span class="muted" style="font-size:12.5px">共 {{ flows.length }} 个流程 / {{ totalSteps }} 个步骤，生成 {{ currentFramework.label }} 可运行项目（zip）</span>
@@ -251,43 +251,87 @@ if (preTitle && flows.value[0]) flows.value[0].title = String(preTitle)
 </script>
 
 <style scoped>
-.framework-pick { margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
-.pick-label { display: block; font-size: 12.5px; font-weight: 500; color: var(--text-secondary, #57606f); margin-bottom: 9px; }
-.pick-options { display: flex; gap: 10px; flex-wrap: wrap; }
-.pick-chip {
-  display: flex; align-items: center; gap: 8px; padding: 9px 14px;
-  border: 1.5px solid var(--border); border-radius: 10px; background: #fff;
-  font-size: 13px; color: var(--text-primary, #0f1420); cursor: pointer;
-  transition: all .18s;
+/* Vercel design system —— 近白灰阶 + 黑墨强调 + mono 技术标签 */
+.framework-pick { margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid #ebebeb; }
+.pick-label {
+  display: block; font-family: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  font-size: 11px; font-weight: 400; color: #888; margin-bottom: 10px;
+  letter-spacing: .3px; text-transform: uppercase;
 }
-.pick-chip:hover { border-color: var(--primary); }
-.pick-chip.active { border-color: var(--primary); background: var(--primary-light, #eef1ff); box-shadow: 0 0 0 3px rgba(91,107,245,.1); }
-.pick-icon { font-size: 15px; }
-.flow-card { border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; background: #fafbff; }
-.flow-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-.flow-no { font-size: 12.5px; font-weight: 600; color: var(--primary); background: #eef1ff; padding: 4px 10px; border-radius: 6px; flex-shrink: 0; }
+.pick-options { display: flex; gap: 8px; flex-wrap: wrap; }
+.pick-chip {
+  display: flex; align-items: center; gap: 8px; padding: 7px 14px;
+  border: 1px solid #ebebeb; border-radius: 100px; background: #fff;
+  font-size: 14px; font-weight: 500; color: #4d4d4d; cursor: pointer;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.pick-chip:hover { border-color: #a1a1a1; color: #171717; }
+.pick-chip.active { border-color: #171717; background: #171717; color: #fff; }
+.pick-icon { font-size: 14px; line-height: 1; }
+
+.flow-card {
+  border: 1px solid #ebebeb; border-radius: 8px; padding: 16px; margin-bottom: 12px;
+  background: #fff; box-shadow: 0 1px 1px rgba(0,0,0,.05), 0 2px 2px rgba(0,0,0,.1), inset 0 0 0 1px rgba(0,0,0,.02);
+}
+.flow-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid #ebebeb; }
+.flow-no {
+  font-family: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  font-size: 11px; color: #888; background: #fafafa; border: 1px solid #ebebeb;
+  padding: 3px 8px; border-radius: 4px; flex-shrink: 0;
+}
 .flow-title { flex: 1; font-weight: 500; }
 .flow-ops { display: flex; gap: 4px; flex-shrink: 0; }
-.step-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; }
-.step-no { width: 24px; height: 24px; border-radius: 50%; background: #eef1ff; color: var(--primary); display: grid; place-items: center; font-size: 11.5px; flex-shrink: 0; }
+
+.step-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
+.step-no {
+  width: 22px; height: 22px; border-radius: 100px; background: #fafafa; border: 1px solid #ebebeb;
+  color: #666; display: grid; place-items: center;
+  font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; font-size: 11px; flex-shrink: 0;
+}
 .act-sel { width: 128px; flex-shrink: 0; }
 .target-in { flex: 1.4; min-width: 0; }
 .value-in { flex: 1; min-width: 0; }
 .step-ops { display: flex; gap: 4px; flex-shrink: 0; }
 .icon-btn {
-  width: 26px; height: 26px; border: 1px solid var(--border); background: #fff; border-radius: 6px;
-  cursor: pointer; font-size: 13px; color: #57606f; display: grid; place-items: center; line-height: 1;
-  transition: all .15s;
+  width: 26px; height: 26px; border: 1px solid #ebebeb; background: #fff; border-radius: 6px;
+  cursor: pointer; font-size: 13px; color: #666; display: grid; place-items: center; line-height: 1;
+  transition: border-color .15s, color .15s, background .15s;
 }
-.icon-btn:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
-.icon-btn:disabled { opacity: .35; cursor: not-allowed; }
-.icon-btn.danger:hover { border-color: var(--danger); color: var(--danger); }
-.tip-card { background: #fafbfc; border: 1px solid var(--border); border-radius: 10px; padding: 13px 15px; margin-bottom: 12px; font-size: 12.5px; line-height: 1.7; }
-.tip-card b { display: block; margin-bottom: 7px; color: #0f1420; }
+.icon-btn:hover:not(:disabled) { border-color: #171717; color: #171717; background: #fafafa; }
+.icon-btn:disabled { opacity: .3; cursor: not-allowed; }
+.icon-btn.danger:hover { border-color: #ee0000; color: #ee0000; background: #fff5f5; }
+
+.tip-card {
+  background: #fff; border: 1px solid #ebebeb; border-radius: 8px; padding: 14px 16px; margin-bottom: 10px;
+  font-size: 13px; line-height: 1.7; color: #4d4d4d;
+  box-shadow: 0 1px 1px rgba(0,0,0,.05), inset 0 0 0 1px rgba(0,0,0,.02);
+}
+.tip-card b {
+  display: block; margin-bottom: 8px; color: #171717; font-weight: 500;
+  font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; font-size: 11px;
+  letter-spacing: .3px; text-transform: uppercase;
+}
 .tips { margin: 0; padding-left: 18px; }
-.tip-card code { background: rgba(79,95,224,.08); color: var(--primary); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+.tip-card code {
+  background: #f5f5f5; color: #171717; border: 1px solid #ebebeb;
+  padding: 1px 5px; border-radius: 4px;
+  font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; font-size: 11.5px;
+}
 .mini-table { width: 100%; border-collapse: collapse; }
-.mini-table th, .mini-table td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--border); font-weight: 400; }
-.mini-table th { font-size: 11.5px; color: #98a0b0; }
-.tree { background: #0f1420; color: #c9d4f2; padding: 12px 14px; border-radius: 8px; font-size: 11.5px; line-height: 1.75; overflow-x: auto; }
+.mini-table th, .mini-table td { text-align: left; padding: 5px 8px; border-bottom: 1px solid #ebebeb; font-weight: 400; }
+.mini-table th {
+  font-family: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  font-size: 10.5px; color: #888; text-transform: uppercase; letter-spacing: .3px;
+}
+.tree {
+  background: #171717; color: #e5e5e5; padding: 12px 14px; border-radius: 6px;
+  font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; font-size: 11.5px; line-height: 1.75; overflow-x: auto;
+}
+
+/* 主按钮：Vercel 黑墨 pill */
+.gen-btn {
+  background: #171717; border-color: #171717; color: #fff; border-radius: 100px; font-weight: 500;
+}
+.gen-btn:hover:not(:disabled) { background: #000; border-color: #000; color: #fff; box-shadow: 0 4px 12px rgba(0,0,0,.2); }
+.gen-btn:disabled { background: #171717; }
 </style>
