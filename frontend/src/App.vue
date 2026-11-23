@@ -7,11 +7,11 @@
       <div class="logo"><span class="mark">⚡</span> <span class="logo-text">测试提效平台<small>TEST EFFICIENCY</small></span></div>
       <nav class="nav">
         <div class="nav-group-label">工作空间</div>
-        <router-link v-for="n in navItems.slice(0, 6)" :key="n.path" :to="n.path" class="nav-item" active-class="active">
+        <router-link v-for="n in navItems.slice(0, 5)" :key="n.path" :to="n.path" class="nav-item" active-class="active">
           <span class="icon">{{ n.icon }}</span>{{ n.title }}
         </router-link>
         <div class="nav-group-label">效率工具</div>
-        <router-link v-for="n in navItems.slice(6)" :key="n.path" :to="n.path" class="nav-item" active-class="active">
+        <router-link v-for="n in navItems.slice(5)" :key="n.path" :to="n.path" class="nav-item" active-class="active">
           <span class="icon">{{ n.icon }}</span>{{ n.title }}
         </router-link>
       </nav>
@@ -72,8 +72,8 @@ const navItems = [
   { path: '/gen-cases', icon: '✨', title: '需求生成用例' },
   { path: '/coverage', icon: '🎯', title: '覆盖率分析' },
   { path: '/api-test', icon: '🔌', title: '接口测试' },
-  { path: '/ui-test', icon: '🌐', title: 'Web UI 自动化' },
   { path: '/api-autogen', icon: '🤖', title: '接口自动化' },
+  { path: '/ui-test', icon: '🌐', title: 'Web UI 自动化' },
   { path: '/locator', icon: '🎯', title: '元素定位' },
   { path: '/runs', icon: '📈', title: '执行报告' },
   { path: '/environments', icon: '⚙️', title: '环境管理' },
