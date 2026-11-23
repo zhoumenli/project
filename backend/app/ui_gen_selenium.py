@@ -9,6 +9,7 @@ import zipfile
 import yaml as pyyaml
 
 from .ui_gen_common import safe, locator_for_selenium, validate_all
+from . import ui_gen_framework as fw
 
 ROOT = "selenium_ui_autotest"
 
@@ -26,10 +27,11 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options as ChromeOptions
 
 import config
+from Tools.my_logger import logger
 
-RESULT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "results")
-SCREEN_DIR = os.path.join(RESULT_DIR, "frames")
-VIDEO_DIR = os.path.join(RESULT_DIR, "video")
+RESULT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), config.OUTPUT_ROOT)
+SCREEN_DIR = RESULT_DIR
+VIDEO_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), config.VIDEO_DIR)
 
 
 def _make_options():
@@ -122,8 +124,15 @@ def pytest_runtest_makereport(item, call):
     try:
         drv.save_screenshot(path)
         allure.attach.file(path, "执行失败截图", allure.attachment_type.PNG)
-    except Exception:
-        pass
+        # 同时落一份追踪信息（对应模板 trace 产物）
+        trace_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), config.TRACE_DIR)
+        os.makedirs(trace_dir, exist_ok=True)
+        with open(os.path.join(trace_dir, "fail-{}.txt".format(time.strftime("%Y%m%d-%H%M%S"))), "w", encoding="utf-8") as f:
+            f.write("用例: {}\\n失败: {}\\nURL: {}\\n".format(
+                item.nodeid, report.longrepr, drv.current_url))
+        logger.error("失败截图: {}".format(path))
+    except Exception as e:
+        logger.warning("失败截图失败: {}".format(e))
 '''
 
 BASE_PAGE = '''# -*- coding: utf-8 -*-
@@ -144,7 +153,18 @@ class BasePage:
 
     # ---------- 操作 ----------
     def open_target(self, url):
+        # HTTP Basic 认证：有凭证时拼到 URL（对应模板 siteguard）
+        sg = getattr(config, "siteguard", {})
+        if sg.get("username") and sg.get("password") and "://" in url:
+            scheme, rest = url.split("://", 1)
+            url = "{}://{}:{}@{}".format(scheme, sg["username"], sg["password"], rest)
         self.driver.get(url)
+        # 自动关 Cookie 弹层（对应模板 Tools/cookie.py）
+        try:
+            from Tools.cookie import dismiss_cookie_overlay
+            dismiss_cookie_overlay(self.driver)
+        except Exception:
+            pass
 
     def click_el(self, by, locator):
         el = self.wait.until(EC.element_to_be_clickable((by, locator)))
@@ -160,13 +180,16 @@ class BasePage:
 
     # ---------- 断言 ----------
     def assert_text(self, text):
-        self.wait.until(lambda d: text in d.find_element(By.TAG_NAME, "body").text)
+        from Tools.assertion import assert_page_contains
+        assert_page_contains(self.driver, text, config.explicit_wait)
 
     def assert_url_contains(self, part):
-        self.wait.until(EC.url_contains(part))
+        from Tools.assertion import assert_url_contains
+        assert_url_contains(self.driver, part, config.explicit_wait)
 
     def assert_title_contains(self, title):
-        self.wait.until(lambda d: title in d.title)
+        from Tools.assertion import assert_title_contains
+        assert_title_contains(self.driver, title, config.explicit_wait)
 '''
 
 
@@ -187,6 +210,18 @@ explicit_wait = float(os.getenv("UI_EXPLICIT_WAIT", "15"))
 
 # 是否录屏（后台截图合成 GIF 附到 Allure）
 video_enabled = os.getenv("UI_VIDEO", "true").lower() != "false"
+
+# HTTP Basic 认证（网关认证）。有凭证时 open_target 自动拼到 URL：http://user:pass@host
+siteguard = {{
+    "username": os.getenv("SITEGUARD_USER", ""),
+    "password": os.getenv("SITEGUARD_PASSWORD", ""),
+}}
+
+# 产物目录
+OUTPUT_ROOT = os.getenv("UI_OUTPUT_DIR", "results")
+IMAGE_DIR = os.path.join(OUTPUT_ROOT, "image")
+TRACE_DIR = os.path.join(OUTPUT_ROOT, "trace")
+VIDEO_DIR = os.path.join(OUTPUT_ROOT, "video")
 '''
 
 
@@ -312,6 +347,8 @@ README = '''# Selenium + pytest UI 自动化项目
 
 由测试提效平台根据流程编排生成，标准 Selenium 4 结构。
 已统一包含：自定义执行顺序、失败重试、失败截图、录屏。
+框架能力（对齐 initial_ui_framework 模板）：文件日志、HTTP Basic 认证、
+Cookie 弹层自动处理、登录态复用、独立断言工具、统一产物目录。
 
 ## 运行
 
@@ -335,13 +372,19 @@ CHROMEDRIVER_PATH=/path/to/chromedriver pytest testcase
 ## 结构
 
 ```
-config.py                 # 目标地址 / headless / 等待 / 录屏开关
-conftest.py               # driver fixture + 录屏器 + 失败截图 + Allure 附件
+config.py                 # 目标地址 / headless / 等待 / 录屏 / siteguard 认证 / 产物目录
+conftest.py               # driver fixture + 录屏器 + 失败截图 + 追踪 + Allure
 pytest.ini                # reruns 重试配置
+Tools/my_logger.py        # 文件日志（对应模板）
+Tools/cookie.py           # Cookie 弹层处理（打开页面自动调用）
+Tools/assertion.py        # URL/标题/文本断言工具
+Tools/auth_state.py       # 登录态保存/复用（cookies）
+Tools/read_data.py        # YAML 数据读取
 Pages/base_page.py        # 通用操作与断言封装
 Pages/flow_N_page.py      # 每个流程一个 Page 类
 testcase/flow_Ncase/      # 测试用例（order + parametrize 数据驱动）
 testdata/flow_N_data.yaml # 可变值（改数据不用改代码）
+logs/ results/{image,trace,video}/  # 运行产物目录
 ```
 '''
 
@@ -385,6 +428,10 @@ def generate_selenium(flows) -> tuple[bytes, str]:
         zf.writestr(f"{ROOT}/requirements.txt", REQS)
         zf.writestr(f"{ROOT}/README.md", README)
         zf.writestr(f"{ROOT}/Tools/read_data.py", READ_DATA)
+        zf.writestr(f"{ROOT}/Tools/my_logger.py", fw.MY_LOGGER_PY)
+        zf.writestr(f"{ROOT}/Tools/cookie.py", fw.COOKIE_PY)
+        zf.writestr(f"{ROOT}/Tools/assertion.py", fw.ASSERTION_PY)
+        zf.writestr(f"{ROOT}/Tools/auth_state.py", fw.AUTH_PY)
         zf.writestr(f"{ROOT}/Pages/__init__.py", "")
         zf.writestr(f"{ROOT}/Pages/base_page.py", BASE_PAGE)
         zf.writestr(f"{ROOT}/testcase/__init__.py", "")

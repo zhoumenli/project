@@ -10,6 +10,7 @@ import time
 import zipfile
 
 from .ui_gen_common import locator_for_robot, robot_escape, safe, validate_all
+from . import ui_gen_framework as fw
 
 ROOT = "robot_ui_autotest"
 
@@ -22,6 +23,8 @@ Library    String
 *** Variables ***
 ${BROWSER}    chrome
 ${HEADLESS}    true
+${SITEGUARD_USER}    ${EMPTY}
+${SITEGUARD_PASSWORD}    ${EMPTY}
 
 *** Keywords ***
 创建无头选项
@@ -50,6 +53,49 @@ ${HEADLESS}    true
 
 关闭浏览器
     Close All Browsers
+
+带认证打开网页
+    [Arguments]    ${url}    ${user}=${SITEGUARD_USER}    ${pwd}=${SITEGUARD_PASSWORD}
+    ${real_url}=    Set Variable    ${url}
+    IF    '${user}' != '' and '${pwd}' != ''
+        ${parts}=    Split String    ${url}    ://
+        ${real_url}=    Set Variable    ${parts}[0]://${user}:${pwd}@${parts}[1]
+    END
+    Open Browser    ${real_url}    ${BROWSER}    options=${BROWSER_OPTIONS}
+    Set Browser Implicit Wait    5s
+    关闭 Cookie 弹层
+
+关闭 Cookie 弹层
+    ${count}=    Get Element Count    #onetrust-accept-btn-handler
+    IF    ${count} > 0
+        Click Element    #onetrust-accept-btn-handler
+    END
+    FOR    ${sel}    IN    .onetrust-pc-dark-filter    #onetrust-consent-sdk
+        ${n}=    Get Element Count    ${sel}
+        IF    ${n} > 0
+            Execute Javascript    document.querySelectorAll('${sel}').forEach(e => e.remove());
+        END
+    END
+
+保存登录态
+    [Arguments]    ${path}=state.json
+    ${cookies}=    Get Cookies
+    ${json}=    Evaluate    __import__('json').dumps($cookies, ensure_ascii=False)
+    Create File    ${path}    ${json}
+
+恢复登录态
+    [Arguments]    ${path}=state.json    ${url}=${EMPTY}
+    ${exists}=    File Exists    ${path}
+    IF    ${exists}
+        ${json}=    Get File    ${path}
+        ${cookies}=    Evaluate    __import__('json').loads($json)
+        IF    '${url}' != '${EMPTY}'
+            Go To    ${url}
+        END
+        FOR    ${c}    IN    @{cookies}
+            Add Cookie    ${c}
+        END
+    END
 '''
 
 # 录屏监听器：每个关键字结束后抓一帧，套件结束时合成 GIF 附到 log
@@ -141,8 +187,7 @@ def _flow_robot(flow, idx):
         target = (s.get("target") or "").strip() if isinstance(s.get("target"), str) else ""
         if action == "goto":
             if first_goto:
-                lines.append(f"    Open Browser    ${{URL_{i}}}    ${{BROWSER}}    options=${{BROWSER_OPTIONS}}")
-                lines.append("    Set Browser Implicit Wait    5s")
+                lines.append(f"    带认证打开网页    ${{URL_{i}}}")
                 first_goto = False
             else:
                 lines.append(f"    Go To    ${{URL_{i}}}")
@@ -172,6 +217,8 @@ README = '''# Robot Framework UI 自动化项目
 
 由测试提效平台根据流程编排生成，使用 SeleniumLibrary。
 已统一包含：自定义执行顺序、失败重试、失败截图、录屏。
+框架能力（对齐 initial_ui_framework 模板）：文件日志、HTTP Basic 认证、
+Cookie 弹层自动处理、登录态复用、统一产物目录。
 
 ## 运行
 
@@ -191,11 +238,13 @@ python main.py                                            # 按编排顺序+重�
 ## 结构
 
 ```
-common.resource                  # SeleniumLibrary + 失败截图关键字 + 浏览器开关
+common.resource                  # SeleniumLibrary + 认证/Cookie/登录态/失败截图关键字
 recorder.py                      # 录屏 listener（每步截图 -> GIF）
+my_logger.py / auth_state.py     # 文件日志 / 登录态工具（对齐模板）
 main.py                          # 顺序+重试+录屏一键运行入口
 testcases/flow_N.robot           # 序号前缀保证执行顺序
 testcases/flow_N_data.resource   # 该流程的可变值
+logs/ results/{image,trace,video}/ state.json  # 运行产物
 ```
 '''
 
@@ -225,6 +274,8 @@ def generate_robot(flows) -> tuple[bytes, str]:
         zf.writestr(f"{ROOT}/README.md", README)
         zf.writestr(f"{ROOT}/common.resource", COMMON_RESOURCE)
         zf.writestr(f"{ROOT}/recorder.py", RECORDER_LISTENER)
+        zf.writestr(f"{ROOT}/my_logger.py", fw.MY_LOGGER_PY)
+        zf.writestr(f"{ROOT}/auth_state.py", fw.AUTH_PY)
         zf.writestr(f"{ROOT}/main.py", MAIN_PY)
         zf.writestr(f"{ROOT}/testcases/.gitkeep", "")
         for idx, flow in enumerate(flows, start=1):

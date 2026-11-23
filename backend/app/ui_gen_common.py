@@ -65,8 +65,26 @@ def locator_for_selenium(target: str) -> tuple[str, str]:
     优先识别 XPath/CSS/text=；纯文本按 XPath contains(text()) 匹配。
     """
     t = target.strip()
-    if t.startswith(("//", "./", "(")):
+    # 剥离用户已带的前缀，避免 By.CSS_SELECTOR + "css=..." 双前缀
+    for p in ("css=", "xpath=", "id=", "name=", "link=", "tag=", "class="):
+        if t.lower().startswith(p):
+            t = t[len(p):]
+            _prefix = p
+            break
+    else:
+        _prefix = ""
+    if t.startswith(("//", "./", "(")) or _prefix == "xpath=":
         return "By.XPATH", repr(t)
+    if _prefix == "id=":
+        return "By.ID", repr(t)
+    if _prefix == "name=":
+        return "By.NAME", repr(t)
+    if _prefix == "tag=":
+        return "By.TAG_NAME", repr(t)
+    if _prefix == "class=":
+        return "By.CLASS_NAME", repr(t)
+    if _prefix == "link=":
+        return "By.LINK_TEXT", repr(t)
     if t.startswith("text="):
         txt = t[5:].strip().replace("'", "\\'")
         return "By.XPATH", repr(f"//*[contains(text(), '{txt}')]")
@@ -79,8 +97,18 @@ def locator_for_selenium(target: str) -> tuple[str, str]:
 def locator_for_robot(target: str) -> str:
     """把目标定位翻译成 SeleniumLibrary 认可的定位字符串。"""
     t = target.strip()
-    if t.startswith(("//", "./", "(")):
+    # 剥离用户已带的前缀，避免 "css=css=..." / "css=id=..." 双前缀
+    for p in ("css=", "xpath=", "id=", "name=", "link=", "tag=", "class="):
+        if t.lower().startswith(p):
+            t = t[len(p):]
+            _prefix = p
+            break
+    else:
+        _prefix = ""
+    if t.startswith(("//", "./", "(")) or _prefix == "xpath=":
         return "xpath=" + t
+    if _prefix in ("id=", "name=", "link=", "tag=", "class=", "css="):
+        return _prefix + t
     if t.startswith("text="):
         txt = t[5:].strip().replace("'", "\\'")
         return f"xpath=//*[contains(text(), '{txt}')]"
