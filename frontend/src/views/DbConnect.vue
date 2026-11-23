@@ -50,7 +50,15 @@
           </div>
 
           <div class="driver-tip" v-if="currentType && !currentType.available">
-            该数据库驱动未安装。后端执行：<code>{{ currentType.hint }}</code>
+            <div>{{ currentType.note || '该数据库驱动未安装' }}</div>
+            <div v-if="currentType.pip_package" style="margin:8px 0">
+              安装命令：<code>pip install {{ currentType.pip_package }}</code>
+            </div>
+            <button class="btn btn-sm btn-primary" v-if="currentType.pip_package" @click="installDriver"
+              :disabled="installing">{{ installing ? '安装中（约10-60秒）...' : '⚡ 一键安装驱动' }}</button>
+            <div v-if="installResult" class="result-note" :class="installResult.ok ? 'ok' : 'bad'" style="margin-top:10px">
+              {{ installResult.ok ? '✓' : '✗' }} {{ installResult.message }}
+            </div>
           </div>
 
           <div v-if="savedList.length" class="saved-list">
@@ -143,6 +151,8 @@ const queryResult = ref(null)
 const queryError = ref('')
 const tables = ref([])
 const savedList = ref([])
+const installing = ref(false)
+const installResult = ref(null)
 
 const currentType = computed(() => dbTypes.value.find(t => t.type === form.value.db_type))
 
@@ -170,6 +180,21 @@ function onTypeChange() {
   if (t) form.value.port = t.default_port
   connected.value = false
   testResult.value = null
+}
+
+async function installDriver() {
+  if (!currentType.value?.pip_package) return
+  installing.value = true
+  installResult.value = null
+  try {
+    const r = await post(`/api/db/install-driver/${form.value.db_type}`, {})
+    installResult.value = r
+    if (r.ok) {
+      notify('驱动安装成功，正在刷新...')
+      dbTypes.value = await api('/api/db/types')  // 刷新驱动状态
+    }
+  } catch (e) { installResult.value = { ok: false, message: e.message } }
+  finally { installing.value = false }
 }
 
 async function testConn() {

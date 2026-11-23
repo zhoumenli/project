@@ -497,6 +497,15 @@ def db_types():
     return db_engine.supported_drivers()
 
 
+@app.post("/api/db/install-driver/{db_type}")
+def db_install_driver(db_type: str):
+    """一键安装指定数据库驱动（在后端 Python 环境执行 pip install）。"""
+    try:
+        return db_engine.install_driver(db_type)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
 @app.post("/api/db/test")
 def db_test(payload: DbConfig):
     """测试数据库连接。"""

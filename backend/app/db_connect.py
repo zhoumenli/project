@@ -12,12 +12,32 @@ import decimal
 from datetime import date, datetime
 from typing import Any
 
+# 驱动映射：优先选纯 Python 驱动（无需编译/系统依赖）
+# MySQL: pymysql（纯 Python）| PostgreSQL: pg8000（纯 Python）
+# Oracle: oracledb（纯 Python 版）| SQLServer: pyodbc（需系统 ODBC 驱动）
 DRIVERS = {
     "mysql": "pymysql",
-    "postgresql": "psycopg2",
+    "postgresql": "pg8000",
     "oracle": "oracledb",
     "sqlserver": "pyodbc",
     "sqlite": "sqlite3",
+}
+
+# 一键安装时的 pip 包名（可能与导入名不同）
+PIP_PACKAGES = {
+    "mysql": "pymysql",
+    "postgresql": "pg8000",
+    "oracle": "oracledb",
+    "sqlserver": "pyodbc",
+    "sqlite": "",  # 内置
+}
+# 每种驱动的部署难度提示
+DRIVER_NOTES = {
+    "mysql": "纯 Python 驱动，pip 即可安装",
+    "postgresql": "pg8000 纯 Python，无需编译",
+    "oracle": "oracledb 纯 Python 版，无需 Oracle 客户端",
+    "sqlserver": "需 pip 安装 pyodbc，且系统需装 ODBC Driver 17",
+    "sqlite": "Python 内置，无需安装",
 }
 
 DEFAULT_PORTS = {
@@ -83,16 +103,17 @@ def _connect(cfg: dict):
         return conn, conn.cursor()
 
     if kind == "postgresql":
+        # pg8000 纯 Python 驱动，无需 C 编译；返回 tuple，execute_query 会按 description 转 dict
         try:
-            import psycopg2
-            from psycopg2.extras import RealDictCursor
+            import pg8000
+            import pg8000.dbapi
         except ImportError:
-            raise ValueError("缺少 PostgreSQL 驱动，请执行: pip install psycopg2-binary")
-        conn = psycopg2.connect(
-            host=host, port=port or 5432, user=user, password=password,
-            dbname=database, connect_timeout=timeout,
+            raise ValueError("缺少 PostgreSQL 驱动，可在页面上点「一键安装」或执行: pip install pg8000")
+        conn = pg8000.dbapi.connect(
+            user=user, host=host, port=port or 5432, password=password,
+            database=database, timeout=timeout,
         )
-        return conn, conn.cursor(cursor_factory=RealDictCursor)
+        return conn, conn.cursor()
 
     if kind == "oracle":
         try:
@@ -246,17 +267,17 @@ def describe_table(cfg: dict, table: str) -> dict:
 
 
 def supported_drivers() -> list:
-    """返回每种数据库是否可用（前端提示用）。"""
+    """返回每种数据库是否可用（前端提示/一键安装用）。"""
     out = []
     for kind, module in DRIVERS.items():
         if kind == "sqlite":
-            available, hint = True, "内置"
+            available, hint = True, "Python 内置，无需安装"
         else:
             try:
                 __import__(module)
                 available, hint = True, "已安装"
             except ImportError:
-                available, hint = False, f"pip install {module}"
+                available, hint = False, PIP_PACKAGES[kind]
         out.append({
             "type": kind, "label": {
                 "mysql": "MySQL", "postgresql": "PostgreSQL", "oracle": "Oracle",
@@ -264,5 +285,34 @@ def supported_drivers() -> list:
             }[kind],
             "default_port": DEFAULT_PORTS[kind],
             "driver": module, "available": available, "hint": hint,
+            "pip_package": PIP_PACKAGES[kind], "note": DRIVER_NOTES[kind],
         })
     return out
+
+
+def install_driver(kind: str) -> dict:
+    """在后端进程环境安装指定数据库驱动（subprocess 调用 pip）。"""
+    if kind not in DRIVERS:
+        raise ValueError(f"不支持的数据库类型: {kind}")
+    package = PIP_PACKAGES.get(kind, "")
+    if not package:
+        return {"ok": True, "message": "该数据库无需安装驱动"}
+    try:
+        __import__(DRIVERS[kind])
+        return {"ok": True, "message": "驱动已安装，无需重复安装"}
+    except ImportError:
+        pass
+    import subprocess
+    import sys
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-m", "pip", "install", package],
+            capture_output=True, text=True, timeout=180,
+        )
+        if proc.returncode == 0:
+            return {"ok": True, "message": f"驱动 {package} 安装成功", "output": proc.stdout[-500:]}
+        return {"ok": False, "message": f"安装失败: {proc.stderr[-500:] or proc.stdout[-500:]}"}
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "message": "安装超时（超过 180 秒），请手动安装"}
+    except Exception as e:
+        return {"ok": False, "message": f"安装异常: {e}"}
