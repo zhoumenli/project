@@ -252,42 +252,42 @@ if (preTitle && flows.value[0]) flows.value[0].title = String(preTitle)
 
 <style scoped>
 .framework-pick { margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
-.pick-label { display: block; font-size: 12.5px; font-weight: 500; color: var(--text-secondary, var(--muted)); margin-bottom: 9px; }
+.pick-label { display: block; font-size: 12.5px; font-weight: 500; color: var(--text-secondary, #57606f); margin-bottom: 9px; }
 .pick-options { display: flex; gap: 10px; flex-wrap: wrap; }
 .pick-chip {
   display: flex; align-items: center; gap: 8px; padding: 9px 14px;
-  border: 1.5px solid var(--border); border-radius: 10px; background: var(--panel);
-  font-size: 13px; color: var(--text-primary, var(--text)); cursor: pointer;
+  border: 1.5px solid var(--border); border-radius: 10px; background: #fff;
+  font-size: 13px; color: var(--text-primary, #0f1420); cursor: pointer;
   transition: all .18s;
 }
 .pick-chip:hover { border-color: var(--primary); }
-.pick-chip.active { border-color: var(--primary); background: var(--primary-light, var(--primary-light)); box-shadow: 0 0 0 3px rgba(91,107,245,.1); }
+.pick-chip.active { border-color: var(--primary); background: var(--primary-light, #eef1ff); box-shadow: 0 0 0 3px rgba(91,107,245,.1); }
 .pick-icon { font-size: 15px; }
-.flow-card { border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; background: var(--panel-2); }
+.flow-card { border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; background: #fafbff; }
 .flow-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-.flow-no { font-size: 12.5px; font-weight: 600; color: var(--primary); background: var(--primary-light); padding: 4px 10px; border-radius: 6px; flex-shrink: 0; }
+.flow-no { font-size: 12.5px; font-weight: 600; color: var(--primary); background: #eef1ff; padding: 4px 10px; border-radius: 6px; flex-shrink: 0; }
 .flow-title { flex: 1; font-weight: 500; }
 .flow-ops { display: flex; gap: 4px; flex-shrink: 0; }
 .step-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; }
-.step-no { width: 24px; height: 24px; border-radius: 50%; background: var(--primary-light); color: var(--primary); display: grid; place-items: center; font-size: 11.5px; flex-shrink: 0; }
+.step-no { width: 24px; height: 24px; border-radius: 50%; background: #eef1ff; color: var(--primary); display: grid; place-items: center; font-size: 11.5px; flex-shrink: 0; }
 .act-sel { width: 128px; flex-shrink: 0; }
 .target-in { flex: 1.4; min-width: 0; }
 .value-in { flex: 1; min-width: 0; }
 .step-ops { display: flex; gap: 4px; flex-shrink: 0; }
 .icon-btn {
-  width: 26px; height: 26px; border: 1px solid var(--border); background: var(--panel); border-radius: 6px;
-  cursor: pointer; font-size: 13px; color: var(--muted); display: grid; place-items: center; line-height: 1;
+  width: 26px; height: 26px; border: 1px solid var(--border); background: #fff; border-radius: 6px;
+  cursor: pointer; font-size: 13px; color: #57606f; display: grid; place-items: center; line-height: 1;
   transition: all .15s;
 }
 .icon-btn:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
 .icon-btn:disabled { opacity: .35; cursor: not-allowed; }
 .icon-btn.danger:hover { border-color: var(--danger); color: var(--danger); }
-.tip-card { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 13px 15px; margin-bottom: 12px; font-size: 12.5px; line-height: 1.7; }
-.tip-card b { display: block; margin-bottom: 7px; color: var(--text); }
+.tip-card { background: #fafbfc; border: 1px solid var(--border); border-radius: 10px; padding: 13px 15px; margin-bottom: 12px; font-size: 12.5px; line-height: 1.7; }
+.tip-card b { display: block; margin-bottom: 7px; color: #0f1420; }
 .tips { margin: 0; padding-left: 18px; }
 .tip-card code { background: rgba(79,95,224,.08); color: var(--primary); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
 .mini-table { width: 100%; border-collapse: collapse; }
 .mini-table th, .mini-table td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--border); font-weight: 400; }
-.mini-table th { font-size: 11.5px; color: var(--ink-tertiary); }
-.tree { background: var(--text); color: #c9d4f2; padding: 12px 14px; border-radius: 8px; font-size: 11.5px; line-height: 1.75; overflow-x: auto; }
+.mini-table th { font-size: 11.5px; color: #98a0b0; }
+.tree { background: #0f1420; color: #c9d4f2; padding: 12px 14px; border-radius: 8px; font-size: 11.5px; line-height: 1.75; overflow-x: auto; }
 </style>

@@ -423,60 +423,60 @@ function matchedOnName(m) {
 </script>
 
 <style scoped>
-.hint-bar { background: var(--primary-light); color: var(--primary); border-radius: 8px; padding: 10px 12px; font-size: 12px; line-height: 1.7; margin-bottom: 14px; }
+.hint-bar { background: #eef1ff; color: var(--primary); border-radius: 8px; padding: 10px 12px; font-size: 12px; line-height: 1.7; margin-bottom: 14px; }
 /* 抹掉浏览器自动填充时自带的黄色高亮，避免和"用户已填"状态混淆 */
 input[data-no-autofill]:-webkit-autofill,
 input[data-no-autofill]:-webkit-autofill:hover,
 input[data-no-autofill]:-webkit-autofill:focus {
   -webkit-text-fill-color: #1e2440;
-  -webkit-box-shadow: 0 0 0 1000px var(--panel) inset;
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset;
   caret-color: #1e2440;
   transition: background-color 9999s ease-out 0s;
 }
 .radio-row { display: flex; gap: 16px; }
 .radio-row.wrap { flex-wrap: wrap; gap: 10px; }
-.interactive-panel { background:rgba(39,166,68,.08); border:1px solid rgba(39,166,68,.3); border-radius:8px; padding:12px; margin-top:10px; }
+.interactive-panel { background:#f6fbf9; border:1px solid #b7e4d0; border-radius:8px; padding:12px; margin-top:10px; }
 .interactive-status { display:flex; align-items:center; gap:6px; font-size:12px; }
 .dot { width:8px; height:8px; border-radius:50%; background:#bbb; display:inline-block; }
 .dot.ready { background:var(--success); }
-.dot.starting { background:#e2a33c; }
+.dot.starting { background:#f0ad4e; }
 .dot.closed, .dot.expired, .dot.error { background:#e8534e; }
 .radio { display: flex; align-items: center; gap: 5px; font-size: 13px; cursor: pointer; }
 .adv-toggle { cursor: pointer; font-size: 12px; color: var(--muted); user-select: none; }
 .adv-toggle:hover { color: var(--primary); }
 .adv-tip { font-size: 11px; color: var(--muted); margin-top: 4px; }
 .url-preview { font-size: 11px; color: var(--muted); margin-top: 6px; word-break: break-all; }
-.url-preview code { background: var(--primary-light); color: var(--primary); padding: 2px 6px; border-radius: 4px; }
+.url-preview code { background: #eef1ff; color: var(--primary); padding: 2px 6px; border-radius: 4px; }
 .mono { font-family: Consolas, Monaco, monospace; font-size: 12px; }
 .loading-note { text-align: center; color: var(--muted); font-size: 12px; margin-top: 10px; }
 .hist-item { padding: 8px 10px; border-radius: 8px; cursor: pointer; }
-.hist-item:hover { background: var(--primary-light); }
+.hist-item:hover { background: #f0f3ff; }
 .hist-main { display: flex; justify-content: space-between; align-items: center; }
 .hist-url { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .elem-switch { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
 .elem-pill { display: flex; align-items: center; gap: 6px; border: 1px solid var(--border); border-radius: 20px; padding: 5px 12px; cursor: pointer; font-size: 12px; max-width: 240px; }
 .elem-pill:hover { border-color: var(--primary); }
-.elem-pill.active { border-color: var(--primary); background: var(--primary-light); color: var(--primary); font-weight: 600; }
+.elem-pill.active { border-color: var(--primary); background: #e8eeff; color: var(--primary); font-weight: 600; }
 .pill-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .shots-row { display: flex; gap: 14px; margin-bottom: 14px; }
 .shot-box { flex: 1; min-width: 0; }
 .shot-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
 .full-shot { width: 100%; border: 1px solid var(--border); border-radius: 8px; cursor: zoom-in; }
 .elem-shot { max-width: 100%; max-height: 120px; border: 1px solid var(--border); border-radius: 8px; cursor: zoom-in; }
-.meta-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; background: var(--panel-2); border-radius: 8px; padding: 12px; margin-bottom: 16px; }
+.meta-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; background: #fafbfc; border-radius: 8px; padding: 12px; margin-bottom: 16px; }
 .meta-grid > div { display: flex; flex-direction: column; gap: 3px; font-size: 13px; min-width: 0; }
 .meta-grid b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .meta-grid .muted { font-size: 11px; }
 .loc-cards { display: flex; flex-direction: column; gap: 12px; }
 .loc-card { border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
-.loc-card.recommended { border-color: var(--success); background: rgba(39,166,68,.08); }
+.loc-card.recommended { border-color: var(--success); background: #f6fcf9; }
 .loc-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
-.loc-pri { width: 22px; height: 22px; border-radius: 50%; background: var(--primary-light); color: var(--primary); display: grid; place-items: center; font-size: 12px; font-weight: 700; }
+.loc-pri { width: 22px; height: 22px; border-radius: 50%; background: #eef1ff; color: var(--primary); display: grid; place-items: center; font-size: 12px; font-weight: 700; }
 .loc-card.recommended .loc-pri { background: var(--success); color: #fff; }
 .loc-type { font-weight: 600; font-size: 14px; }
 .loc-desc { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
 .loc-code-row { display: flex; gap: 8px; align-items: stretch; }
-.loc-code { flex: 1; background: var(--text); color: #8ef0b6; padding: 10px 12px; border-radius: 8px; font-family: Consolas, Monaco, monospace; font-size: 13px; word-break: break-all; }
+.loc-code { flex: 1; background: #1c2333; color: #8ef0b6; padding: 10px 12px; border-radius: 8px; font-family: Consolas, Monaco, monospace; font-size: 13px; word-break: break-all; }
 .loc-usage { margin-top: 8px; font-size: 12px; color: var(--muted); }
 .loc-usage code { background: #f0f2f5; padding: 2px 6px; border-radius: 4px; font-size: 11px; }
 .loc-alts { margin-top: 10px; }
@@ -488,6 +488,6 @@ input[data-no-autofill]:-webkit-autofill:focus {
 .attrs { margin-top: 14px; }
 .attrs summary { cursor: pointer; font-size: 12px; color: var(--muted); }
 .attrs-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 10px 0; }
-.attr-item { display: flex; flex-direction: column; gap: 2px; font-size: 12px; background: var(--panel-2); border-radius: 6px; padding: 6px 8px; min-width: 0; }
+.attr-item { display: flex; flex-direction: column; gap: 2px; font-size: 12px; background: #fafbfc; border-radius: 6px; padding: 6px 8px; min-width: 0; }
 .attr-item code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
 </style>

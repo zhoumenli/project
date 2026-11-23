@@ -123,8 +123,8 @@ watch(() => keyword.value, () => { if (keyword.value === '') estimate() })
 </script>
 
 <style scoped>
-.tip-card { background: var(--surface-2, #f6f7fb); border: 1px solid var(--border, var(--border)); border-radius: 10px; padding: 12px 14px; font-size: 13px; line-height: 1.7; margin-bottom: 10px; }
-.tip-card.warn { background: rgba(226,163,60,.13); border-color: rgba(226,163,60,.35); }
+.tip-card { background: var(--surface-2, #f6f7fb); border: 1px solid var(--border, #e3e6ef); border-radius: 10px; padding: 12px 14px; font-size: 13px; line-height: 1.7; margin-bottom: 10px; }
+.tip-card.warn { background: #fff7e8; border-color: #f0d9a8; }
 .tip-card code { background: #eceef6; border-radius: 4px; padding: 1px 5px; font-size: 12px; }
-.tree { background: var(--text); color: #c9d4f5; border-radius: 8px; padding: 10px 12px; font-size: 12px; line-height: 1.6; font-family: Consolas, monospace; white-space: pre; overflow: auto; margin: 8px 0 0; }
+.tree { background: #1c2333; color: #c9d4f5; border-radius: 8px; padding: 10px 12px; font-size: 12px; line-height: 1.6; font-family: Consolas, monospace; white-space: pre; overflow: auto; margin: 8px 0 0; }
 </style>

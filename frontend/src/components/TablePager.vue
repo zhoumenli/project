@@ -48,9 +48,9 @@ function go(p) {
 <style scoped>
 .pager { display: flex; align-items: center; gap: 6px; padding: 12px 2px 0; flex-wrap: wrap; }
 .pg-total { font-size: 12px; color: var(--muted, #8a90a0); margin-right: 6px; }
-.pg-btn, .pg-num { border: 1px solid var(--border, var(--border)); background: var(--panel); border-radius: 7px; padding: 4px 10px; font-size: 12px; cursor: pointer; color: var(--text, #2c2c2a); }
+.pg-btn, .pg-num { border: 1px solid var(--border, #e3e6ef); background: #fff; border-radius: 7px; padding: 4px 10px; font-size: 12px; cursor: pointer; color: var(--text, #2c2c2a); }
 .pg-btn:disabled { opacity: .4; cursor: not-allowed; }
 .pg-num.active { background: var(--primary, #5b6bf5); border-color: var(--primary, #5b6bf5); color: #fff; }
 .pg-num.gap { border: none; background: none; cursor: default; }
-.pg-size { border: 1px solid var(--border, var(--border)); border-radius: 7px; padding: 4px 6px; font-size: 12px; margin-left: 4px; }
+.pg-size { border: 1px solid var(--border, #e3e6ef); border-radius: 7px; padding: 4px 6px; font-size: 12px; margin-left: 4px; }
 </style>

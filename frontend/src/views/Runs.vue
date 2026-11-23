@@ -31,7 +31,7 @@
         <div class="modal-head">新建执行<button class="close-x" @click="runDialog=false">×</button></div>
         <div class="modal-body">
           <div class="field"><label>执行方式</label><select class="select" v-model="runMode"><option value="suite">按测试集</option><option value="type">按用例类型</option><option value="manual">手动选择用例</option></select>
-            <div class="adv-tip">用例按顺序执行；前一条用例「提取的变量」会自动传给后续用例，可在 URL/请求头/Body 用 <code>&#8fa9ff;&#8fa9ff;变量名&#8fa9ff;&#8fa9ff;</code> 引用（接口关联）</div>
+            <div class="adv-tip">用例按顺序执行；前一条用例「提取的变量」会自动传给后续用例，可在 URL/请求头/Body 用 <code>&#123;&#123;变量名&#125;&#125;</code> 引用（接口关联）</div>
           </div>
           <div v-if="runMode==='suite'" class="field"><label>选择测试集</label><select class="select" v-model="runPayload.suite_id"><option :value="null">-- 请选择 --</option><option v-for="s in suites" :key="s.id" :value="s.id">{{ s.name }} ({{ s.case_ids.length }}用例)</option></select></div>
           <div v-if="runMode==='type'" class="field"><label>用例类型</label><select class="select" v-model="runPayload.case_type"><option value="api">接口用例</option><option value="ui">UI 用例</option></select></div>
@@ -150,16 +150,16 @@ function fmtVal(v) { return typeof v === 'object' ? JSON.stringify(v) : String(v
 .check { display: block; padding: 5px 0; font-size: 13px; cursor: pointer; }
 .check input { margin-right: 8px; }
 .adv-tip { font-size: 11px; color: var(--muted); margin-top: 6px; line-height: 1.6; }
-.adv-tip code { background: var(--primary-light); color: var(--primary); padding: 1px 4px; border-radius: 3px; }
+.adv-tip code { background: #eef1ff; color: var(--primary); padding: 1px 4px; border-radius: 3px; }
 .report-summary { display: flex; gap: 30px; margin-bottom: 18px; }
 .report-summary div { display: flex; flex-direction: column; text-align: center; }
 .report-summary b { font-size: 28px; }
 .report-summary span { font-size: 12px; color: var(--muted); }
 .detail { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 10px; overflow: hidden; }
-.detail-head { display: flex; align-items: center; gap: 10px; padding: 11px 14px; cursor: pointer; background: var(--panel-2); }
+.detail-head { display: flex; align-items: center; gap: 10px; padding: 11px 14px; cursor: pointer; background: #fafbfc; }
 .detail-body { padding: 14px; border-top: 1px solid var(--border); }
-.result-error { background: rgba(235,87,87,.15); color: var(--danger); padding: 12px; border-radius: 8px; margin-bottom: 12px; }
+.result-error { background: #fdeaea; color: var(--danger); padding: 12px; border-radius: 8px; margin-bottom: 12px; }
 .assert-result { display: flex; gap: 8px; padding: 6px 10px; border-radius: 6px; font-size: 12px; margin-bottom: 5px; }
-.assert-result.ok { background: rgba(39,166,68,.16); color: var(--success); }
-.assert-result.no { background: rgba(235,87,87,.15); color: var(--danger); }
+.assert-result.ok { background: #e4f7ee; color: var(--success); }
+.assert-result.no { background: #fdeaea; color: var(--danger); }
 </style>
