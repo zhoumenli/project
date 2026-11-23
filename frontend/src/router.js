@@ -15,6 +15,7 @@ const routes = [
   { path: '/locator', component: () => import('./views/LocatorExtractor.vue'), meta: { title: '元素定位' } },
   { path: '/runs', component: () => import('./views/Runs.vue'), meta: { title: '执行报告' } },
   { path: '/environments', component: () => import('./views/Environments.vue'), meta: { title: '环境管理' } },
+  { path: '/db-connect', component: () => import('./views/DbConnect.vue'), meta: { title: '数据库连接' } },
 ]
 
 const router = createRouter({

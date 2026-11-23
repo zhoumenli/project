@@ -25,6 +25,13 @@ dependencies = [
 
 [project.optional-dependencies]
 llm = ["openai>=1.0"]           # 需求生成的大模型引擎（未安装则回退本地规则引擎）
+# 数据库连接页多数据库驱动：按需安装，如 pip install ".[databases]"
+databases = [
+    "pymysql>=1.1",             # MySQL
+    "psycopg2-binary>=2.9",     # PostgreSQL
+    "oracledb>=2.0",            # Oracle
+    "pyodbc>=5.0",              # SQL Server（另需系统 ODBC 驱动）
+]
 
 [build-system]
 requires = ["setuptools>=68"]

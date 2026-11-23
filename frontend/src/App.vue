@@ -77,6 +77,7 @@ const navItems = [
   { path: '/locator', icon: '🎯', title: '元素定位' },
   { path: '/runs', icon: '📈', title: '执行报告' },
   { path: '/environments', icon: '⚙️', title: '环境管理' },
+  { path: '/db-connect', icon: '🗄', title: '数据库连接' },
 ]
 
 // 剩余可无操作时长（每次空闲巡检/活动事件都会刷新）

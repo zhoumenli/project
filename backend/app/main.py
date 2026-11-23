@@ -25,6 +25,7 @@ from . import ui_autogen as ui_autogen_engine
 from . import api_autogen
 from . import interactive_session
 from . import auth
+from . import db_connect as db_engine
 
 app = FastAPI(title="测试提效平台", version="1.0.0")
 
@@ -462,6 +463,76 @@ def ui_autogen_project(payload: UiAutoGenRequest):
     from urllib.parse import quote
     headers = {"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"}
     return Response(content=data, media_type="application/zip", headers=headers)
+
+
+# ============================================================
+# Database connection & query (multi-DB)
+# ============================================================
+class DbConfig(schemas.BaseModel):
+    db_type: str = "mysql"
+    host: Optional[str] = ""
+    port: Optional[int] = None
+    database: Optional[str] = ""
+    username: Optional[str] = ""
+    password: Optional[str] = ""
+    dsn: Optional[str] = ""       # Oracle 可选完整 DSN
+    timeout: Optional[int] = 10
+
+
+class DbQueryRequest(schemas.BaseModel):
+    config: DbConfig
+    sql: str
+    allow_write: bool = False
+    limit: int = 200
+
+
+class DbTableRequest(schemas.BaseModel):
+    config: DbConfig
+    table: Optional[str] = None
+
+
+@app.get("/api/db/types")
+def db_types():
+    """列出支持的数据库类型及本机驱动是否可用。"""
+    return db_engine.supported_drivers()
+
+
+@app.post("/api/db/test")
+def db_test(payload: DbConfig):
+    """测试数据库连接。"""
+    return db_engine.test_connection(payload.model_dump())
+
+
+@app.post("/api/db/query")
+def db_query(payload: DbQueryRequest):
+    """执行 SQL 查询。默认只读，写操作需 allow_write=True。"""
+    try:
+        return db_engine.execute_query(
+            payload.config.model_dump(), payload.sql,
+            allow_write=payload.allow_write, limit=payload.limit,
+        )
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/db/tables")
+def db_tables(payload: DbConfig):
+    """列出数据库中的表。"""
+    try:
+        return db_engine.list_tables(payload.model_dump())
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/db/describe")
+def db_describe(payload: DbTableRequest):
+    """查看表结构。"""
+    if not payload.table:
+        raise HTTPException(400, "请提供表名")
+    try:
+        return db_engine.describe_table(payload.config.model_dump(), payload.table)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 
 # ============================================================
